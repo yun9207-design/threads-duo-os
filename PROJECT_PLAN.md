@@ -52,3 +52,9 @@ Auth 외 Stage B 기능(users/workspaces/drafts/RLS/Storage), 회원가입·비�
 후속 요청의 Auth Production 배포 범위를 완료했다. 공개 환경변수 두 개를 Production에 설정하고 Supabase Site URL을 Production 주소로 저장했다. Auth 커밋 `ef46831`의 main push로 시작된 Vercel 배포가 Ready 상태가 됐다. 기존 계정의 정상 로그인·사용자 이메일 표시와 같은 사용자 창의 새로고침 유지·로그아웃·익명 재접근 차단, 공개 MASTER_PLAN을 실제 Production에서 검증했다. 로컬 최종 세션 흐름 재확인과 lint/typecheck/build도 통과했다.
 
 이번에는 Auth 배포와 검증·설정 정리만 수행했다. 앱 DB·Threads API·AI·새 UI 기능은 추가하지 않았고 운영 데이터는 mock이다. 다음 권장 단계는 **두 사용자의 workspace 접근 권한과 RLS 설계 검토** 하나이며, 이 작업에서는 구현하지 않는다.
+
+## 2026-10-01 — Workspace 접근 / RLS 적용
+
+후속 요청에 따라 설계 파일 준비를 넘어 실제 Supabase의 profiles/workspaces/workspace_members와 RLS까지 적용했다. 확인 완료 A/B 계정을 공동 workspace의 owner/member로 연결하고 기존 Auth를 유지하는 읽기 전용 API를 추가했다. 조회는 실제 사용자 세션의 Data API 요청과 DB 멤버십으로 보호하며 익명·외부 ID·쓰기·역할 승격을 차단한다.
+
+현재 단계는 workspace 권한 기반만 다룬다. 화면의 운영 데이터·workspace 표시는 계속 mock이며 Threads 계정·초안·승인·예약·AI·게시·Storage를 구현하지 않는다. DB 정책, 실제 A/B 로그인 상태의 접근 검사, Auth 회귀와 품질 검사 결과는 `docs/TEST_NOTES.md`에 남긴다. 기존 문서와 MASTER_PLAN을 보존하며 앱 변경의 push/배포는 이번 작업 범위에 포함하지 않는다. workspace/RLS 검증 후 여기서 멈춘다.

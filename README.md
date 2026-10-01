@@ -121,3 +121,14 @@ Copy-Item .env.example .env.local
 후속 배포 요청에 따라 Auth 커밋 `ef46831`을 GitHub `main`에 push했고 Vercel Production 배포가 Ready 상태로 완료됐다. 현재 주소는 [threads-duo-os.vercel.app](https://threads-duo-os.vercel.app/)이다. Vercel 프로젝트의 Environment Variables에 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` 두 공개 변수를 Production 대상으로 저장했다. `.env.local`은 commit하지 않았고 ANON_KEY 대체 설정은 제거했다. 공개 변수 변경 시 새 Production build가 필요하다.
 
 Supabase Site URL은 `https://threads-duo-os.vercel.app`으로 설정했다. 현재 비밀번호 로그인은 callback이 필요하지 않으며 OAuth·추가 Redirect URL은 구현하지 않았다. 기존 테스트 계정으로 실제 Production 로그인과 이메일 표시를 확인하고, 같은 사용자 창을 자동화로 새로고침해 세션 유지, 로그아웃 → `/login`, 익명 `/` 재접근 차단을 검증했다. `/login`·`/MASTER_PLAN.html` HTTP 200, MASTER_PLAN 원본 SHA256 일치도 확인했다. 배포 전 lint/typecheck/build 통과. 기존 Dashboard 운영 데이터는 계속 mock이다. 상세 증거는 `docs/TEST_NOTES.md`에 기록했다.
+
+## 2026-10-01 — Workspace / RLS 단계
+
+실제 Supabase에 `profiles`, `workspaces`, `workspace_members`와 조회용 RLS를 적용했다. 공동 workspace는 실제 확인 완료 사용자 A(owner)·B(member) 두 명으로 구성했다. 역할은 사용자 전체가 아닌 workspace별 멤버십에 저장한다. 익명·다른 workspace·클라이언트 쓰기·역할 승격은 허용하지 않는다. 데이터 변경용 앱 기능은 제공하지 않고 관리자 SQL로 준비한다.
+
+- `GET /api/workspaces`: 로그인 사용자가 속한 workspace만 조회한다.
+- `GET /api/workspaces/[workspaceId]`: 접근 가능한 workspace·현재 역할·멤버 표시 정보를 조회한다. 외부 ID와 없는 ID는 동일한 404, 익명은 401이다.
+- 쿼리는 기존 요청별 서버 클라이언트와 실제 사용자 세션을 사용한다. 환경변수는 기존 공개 변수 두 개 그대로이며 service/secret key를 추가하지 않았다.
+- 기존 `/login`, Dashboard, 로그아웃과 공개 `/MASTER_PLAN.html`은 유지한다. Dashboard의 workspace 이름·운영 큐·계정·수치는 계속 mock 표시다.
+
+스키마·권한·관리자 provisioning·검증 방법은 [WORKSPACE_ACCESS](docs/WORKSPACE_ACCESS.md), 실제 A/B 브라우저 및 DB 검사 결과는 [TEST_NOTES](docs/TEST_NOTES.md)에 기록한다. A/B 외부 ID 검증용 전용 workspace 두 개는 `[RLS verification]` 이름으로 구분해 보존한다. 앱 변경은 로컬 검증 상태이며 이번 단계에서 GitHub push·Vercel 배포는 수행하지 않았다. 초안·Threads 계정·예약·AI·게시 기능은 구현하지 않았다.

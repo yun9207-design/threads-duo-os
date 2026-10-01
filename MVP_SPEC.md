@@ -56,3 +56,9 @@ Today 화면에서 제공하는 상태 변경은 UI 데모이며 Draft CRUD, 영
 workspace·Threads 계정·draft·승인·큐·수치는 기존 mock으로 유지한다. DB·Storage·AI·Threads API·실제 예약/게시 기능은 구현하지 않았다.
 
 후속 Production 배포 완료: `https://threads-duo-os.vercel.app`에서 기존 테스트 계정 로그인·Dashboard 이메일·새로고침 유지·로그아웃·익명 접근 차단을 확인했다. `/MASTER_PLAN.html`도 원본 내용으로 제공한다. 공개 설정은 URL·publishable 키 두 변수만 사용한다. 다른 P0 기능의 완료 상태는 바꾸지 않는다.
+
+## 2026-10-01 — Workspace / RLS 기반
+
+실제 Supabase에 profiles·workspaces·workspace_members를 생성하고, 공동 workspace에 A(owner)/B(member) 두 사용자 멤버십을 준비했다. 가입 workspace 및 멤버 프로필/멤버십 조회만 허용하는 RLS와 읽기 API를 구현했다. 익명 조회·외부 workspace ID·쓰기·역할 승격은 차단한다. 실제 데이터 접근과 기존 Auth 회귀 검증 결과는 `docs/TEST_NOTES.md`에 기록한다.
+
+이번 범위는 권한 기반까지만 완료한다. 회원 초대·workspace 생성/전환 UI·역할 관리 UI는 없으며 기존 Dashboard는 보존한다. Threads 계정·콘텐츠·초안·승인·예약 큐·운영 수치는 계속 mock이다. Draft CRUD, Storage, AI, OAuth와 실제 예약/게시의 완료 상태는 변경하지 않는다. 앱 변경은 로컬 검증 상태이며 이번에는 추가 Production 배포를 하지 않는다.

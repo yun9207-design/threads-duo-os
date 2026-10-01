@@ -192,3 +192,86 @@ README·PROJECT_PLAN·MVP_SPEC·DB_SCHEMA의 현재 상태를 갱신했고 SECUR
 테스트 사용자는 로컬에서 준비한 기존 계정만 사용했다. 자동화용 새 사용자·가짜 세션·비밀번호 재설정은 만들지 않았다. 사용자가 직접 비밀번호를 입력한 후 실제 로그인된 사용자 탭을 선택하여 나머지 흐름을 검증했다. 비밀번호·세션 쿠키·토큰 값은 읽거나 전달받지 않았다. 로그인하지 않은 별도 자동화 탭의 상태를 정상 사용자 세션으로 오인하지 않았다.
 
 검증 화면은 Git에서 제외된 `.tools/vercel-production-env.jpg`, `.tools/supabase-production-url.jpg`, `.tools/vercel-auth-ready.jpg`, `.tools/production-auth-session.jpg`, `.tools/production-auth-logout.jpg`에 로컬 보관했다. README·PROJECT_PLAN·MVP_SPEC·SECURITY에 현재 Production 상태를 추가하고 이 검증 기록을 문서 커밋으로 main에 반영한다. 운영 데이터는 계속 mock이며 MASTER_PLAN·모든 기존 MD·기존 Dashboard는 보존했다.
+
+## 2026-10-01 — Workspace / RLS 실제 적용 및 A/B 검증
+
+사용자의 후속 명시 요청에 따라 SQL 파일 준비뿐 아니라 현재 Supabase 프로젝트에 실제 DB를 적용했다. 시작 시 git tree는 clean이었다. 기존 public/private 애플리케이션 테이블이 없음을 먼저 조회했고, 관리자 SQL Editor에서 `supabase/migrations/202610010001_workspace_access.sql`을 한 트랜잭션으로 실행했다. 세 테이블과 세 SELECT 정책, private 읽기 helper 두 개를 생성했다. 기존 Auth 테이블·정책·로그인 UI와 Dashboard 동작은 변경하지 않았다. SQL Editor로 수동 적용한 migration이며 CLI migration history를 생성/수정하지 않았다. 동일 migration을 재실행하면 기존 객체 때문에 실패하므로 향후 CLI 적용 전 실제 스키마와 이 기록을 확인해야 한다.
+
+### 실제 데이터 구성
+
+- 사용자 A: 기존 확인 완료 계정. 사용자 B: 사용자가 직접 추가한 확인 완료 계정. 두 계정의 실제 Auth 사용자 ID로 프로필과 멤버십을 구성했다. 비밀번호를 채팅으로 받거나 토큰·쿠키 값을 추출하지 않았다.
+- `Duo Workspace`: `efe8e127-ae8b-41af-ab76-2308d3347158`, A=owner, B=member.
+- `[RLS verification] A only`: `60e2ca48-3252-4e62-869a-749747cab144`, A만 owner.
+- `[RLS verification] B only`: `9b846486-9759-4bb9-b3a7-7ad1bff52380`, B만 owner.
+- 전용 workspace 두 개는 실제 존재하는 다른 ID의 접근 차단을 검증하기 위한 데이터이며 재검증용으로 보존한다. 공동 workspace와 합쳐 workspace 3개·profiles 2개·members 4개를 준비했다. 초안·Threads 계정·운영 데이터는 넣지 않았다.
+
+### 실제 브라우저 → 앱 API → Supabase Data API
+
+사용자가 Chrome에서 직접 A/B의 비밀번호를 입력한 뒤, 각 계정의 이메일이 표시된 실제 로그인 창을 연결했다. 동일한 창을 새로고침하고 API를 호출해 그 세션의 서버 클라이언트가 Supabase RLS를 통과하는 결과를 확인했다. 서버 조회에는 공개 키와 현재 사용자 세션만 사용했으며 별도 관리자 키를 사용하지 않았다.
+
+| 검사 | 결과 |
+| --- | --- |
+| A 로그인 → Dashboard | A 이메일·기존 Today 화면 정상 |
+| A 공동 workspace 상세 | HTTP 200, role=owner, A/B 두 멤버와 표시 이름 반환 |
+| A workspace 목록 | 공동·A-only만 반환, B-only 제외 |
+| A가 실제 B-only ID 지정 | HTTP 404, workspace/멤버 정보 없음 |
+| B 로그인 → Dashboard | B 이메일·기존 Today 화면 정상 |
+| B 공동 workspace 상세 | HTTP 200, 동일 workspace ID, role=member, A/B 두 멤버 반환 |
+| B workspace 목록 | 공동·B-only만 반환, A-only 제외 |
+| B가 실제 A-only ID 지정 | HTTP 404, workspace/멤버 정보 없음 |
+| A/B 새로고침 | Dashboard 이메일 유지, 검사 페이지 새로고침 후 공동 API 200과 원래 역할 유지 |
+| A/B 로그아웃 | 기존 로그아웃 버튼 → `/login` 정상 |
+| 로그아웃 후 `/` 직접 접근 | `/login` 이동, Dashboard 미표시 |
+| 로그아웃 후 공동 workspace API | HTTP 401, ‘로그인이 필요합니다.’ |
+| API 캐시 | 성공/404/401 응답의 `private, no-store` 확인 |
+| `/MASTER_PLAN.html` | 로그인 없이 기존 문서·탭 정상 표시, HTTP 200 |
+
+Chrome이 JSON API의 최상위 문서 탐색을 `ERR_BLOCKED_BY_CLIENT`로 표시했으나 같은 요청은 개발 서버 로그에서 HTTP 200이었다. 결과 확인에는 잠시 만든 로컬 검사 HTML의 정상 버튼 동작으로 동일 API를 직접 호출하고 응답 본문·상태를 표시했다. 이 검사 페이지는 토큰/쿠키 값을 읽지 않았고 검증 후 제거했다. 제품 UI·브라우저 보안 설정을 변경하거나 검사 페이지를 남기지 않았다.
+
+### 실제 DB / 직접 Data API 및 격리 PostgreSQL 검사
+
+- `supabase/tests/workspace_access.sql`의 UUID를 실제 A/B와 위 3개 workspace로 바꾸어 관리자 SQL Editor에서 실행했다. `SET LOCAL ROLE authenticated` + 실제 `auth.uid()`로 A/B 공동 조회·외부 workspace/멤버십 비노출·동료 프로필 조회·owner/member 역할·쓰기/승격 차단을 확인했다. anon 조회 및 private helper 실행도 차단됐다.
+- RLS 활성화·authenticated SELECT·익명/쓰기 권한 회수, private helper 소유권·SECURITY DEFINER·search_path 설정을 검사했다. 인증 주체가 비어 있는 authenticated 역할에서도 행이 보이지 않았다.
+- B 공동 멤버십을 트랜잭션 안에서 일시 제거한 뒤 같은 subject로 공동 workspace/멤버십/A 프로필 접근이 차단됨을 확인했다. 검사 전체는 ROLLBACK해 원래 데이터로 복원했다. 최종 결과는 `PASS`였다. SQL Editor에 검증문을 교체하는 과정에서 붙여넣기가 기존 내용에 섞인 실행은 syntax error로 실패했고, 전체 선택 후 올바른 파일로 교체해 재실행한 최종 검사가 통과했다. 제품 스키마 수정은 필요하지 않았다.
+- 실제 Supabase REST Data API에 공개 키만 붙인 **익명** SELECT 요청을 보냈다. profiles/workspaces/workspace_members 모두 HTTP 401 + `42501`로 차단됐다. `Accept-Profile: private` 요청은 HTTP 406 + `PGRST106`으로, private 스키마가 Data API에 노출되지 않았음을 확인했다. 키 값은 출력하지 않았다.
+- `node scripts/test-workspace-rls.mjs`: 격리된 PGlite PostgreSQL에서 **50개 assertion 통과**. A/B/C/D fixture와 실제 migration으로 읽기 경계, 비멤버·익명·빈 subject, CRUD/승격 차단, 실수로 쓰기 grant를 추가해도 정책으로 차단, FK·역할·중복/owner 제약, search_path 조작과 멤버십 제거를 검사했다. 이는 실제 Supabase 비밀번호 로그인 검증과 별도 결과다.
+
+### 품질·보존·범위
+
+- `npm run lint`, `npm run typecheck`, `npm run build` 통과. 처음 sandbox build의 TypeScript 작업자 시작은 `spawn EPERM`으로 차단됐으며 동일 명령을 허용된 프로세스 권한으로 실행해 완료했다. `/api/workspaces` 및 ID 상세 경로는 동적 Route Handler다.
+- git diff를 점검했다. 기존 Auth 서버 클라이언트의 변경은 schema generic 타입 추가뿐이며 app/page·login UI·session controls·Dashboard·mock data·proxy·환경변수 파일·package/lockfile에는 변경이 없다.
+- 기존 tracked MD 18개 모두 존재, 삭제 0개. 관련 MD는 기존 기록을 유지하고 이번 상태를 추가했다. 기존 `threads-duo-os/` 기획 문서 폴더도 그대로다.
+- MASTER_PLAN 원본과 public 사본 SHA256: `3073aaab4c243c773675df4e123c8e3508e09caf1bf9529effe67022dfa34dff`. 작업 전과 동일하며 `/MASTER_PLAN.html` HTTP 본문도 동일하다. 중첩 원본 문서에는 diff가 없다.
+- `.env.local`은 여전히 Git 제외 상태, `.env.example`은 두 빈 공개 변수뿐이다. 새 환경변수·service/secret key·Auth trigger·쓰기 RPC·OAuth callback은 추가하지 않았다.
+- 실제 DB의 workspace 기반은 적용했지만 앱 변경은 로컬 검증 단계다. 이번 작업에서 commit/push·Vercel 앱 배포는 수행하지 않았다. 기존 Production Auth 배포는 유지한다. 운영 콘텐츠·초안·Threads 계정·승인·예약·AI·게시는 계속 mock/미구현이다.
+
+### 변경 파일 및 증거
+
+- 코드: `app/api/workspaces/route.ts`, `app/api/workspaces/[workspaceId]/route.ts`, `lib/workspaces.ts`, `lib/supabase/database.types.ts`, `lib/supabase/server.ts`.
+- DB·검사: `supabase/migrations/202610010001_workspace_access.sql`, `supabase/provision_workspace.sql`, `supabase/tests/workspace_access.sql`, `scripts/test-workspace-rls.mjs`.
+- 문서: README, PROJECT_PLAN, MVP_SPEC, DB_SCHEMA, SECURITY, 이 TEST_NOTES, 새 `WORKSPACE_ACCESS.md`.
+- 증거: [실제 RLS/권한](screenshots/workspace-rls-applied.png), [실제 DB 검사 PASS](screenshots/workspace-db-tests.png), [A 공동 workspace](screenshots/workspace-a-shared.png), [B 공동 workspace](screenshots/workspace-b-shared.png), [외부 ID 차단](screenshots/workspace-foreign-denied.png).
+
+workspace/RLS 단계에서 멈춘다. 다음 콘텐츠 기능은 시작하지 않는다.
+
+## 2026-10-01 — Workspace / RLS Production 배포 전 재검사
+
+후속 요청에서 현재 workspace/RLS 변경의 commit·main push·Production 검증을 승인했다. 새 기능이나 UI는 추가하지 않는다. git status/diff를 검토했고 기존 Auth·Dashboard·mock data·MASTER_PLAN·환경변수·package/lockfile에는 diff가 없다. 기존 tracked MD 18개가 모두 존재하며 삭제 파일은 없다. 원격 main을 fetch한 결과 시작 커밋 `07a7a18116b597ab60dbe5f5f85306299d89d6d2`와 origin/main의 차이는 0/0이었다.
+
+- `node scripts/test-workspace-rls.mjs`: 격리 PostgreSQL 50개 assertion 재통과.
+- `npm run lint`, `npm run typecheck`, `npm run build`: 모두 재통과. 기존 Auth 경로와 workspace API가 동적 경로로 포함됐다.
+- 실제 Supabase 익명 Data API 조회: profiles/workspaces/workspace_members 모두 HTTP 401 + `42501`. private 스키마 요청은 HTTP 406 + `PGRST106`으로 차단됐다.
+- 로컬 익명 HTTP smoke: `/login` 200, `/` 307 → `/login`, workspace 목록/공동 상세 API 401, `/MASTER_PLAN.html` 200. MASTER_PLAN 응답 SHA256이 원본과 일치한다. API 응답은 `private, no-store`다.
+- 환경변수는 기존 URL·publishable 공개 변수 두 개만 사용한다. `.env.local`은 Git 제외 상태이며 새 환경변수·service/secret key가 없다. Supabase의 기존 실제 스키마와 정책을 그대로 사용하므로 migration/provisioning을 재실행하지 않는다.
+
+실제 A/B 로그인 상태의 로컬 재검사와 Production 결과는 완료 후 별도로 기록한다.
+
+### 로컬 A 후속 재검사
+
+사용자가 내장 브라우저의 A 로그인 화면이 계속 로딩 중이라고 알렸다. 기존 탭은 자동화 읽기에도 응답하지 않았지만 같은 브라우저의 새 탭은 `/login`에서 `/`로 이동하고 서버가 확인한 A 이메일을 표시했다. 로그인 세션은 이미 정상 생성돼 있었으며 기존 탭의 표시/제어 문제가 관찰됐다. Auth 코드·브라우저 보안 설정은 변경하지 않았다.
+
+새 정상 탭에서 Dashboard reload 후 A 이메일 유지, 공동 workspace API 200 + owner + A/B 두 멤버, 목록의 공동/A-only만 노출, 실제 B-only ID 404, 검사 페이지 reload 후 공동 조회/역할 유지, 로그아웃 → `/login`, 익명 `/` → `/login`, 공동 API 401을 다시 확인했다. MASTER_PLAN도 익명 브라우저에서 기존 내용으로 표시됐다. JSON API 최상위 탐색은 계속 브라우저에서 차단돼 이전 단계와 동일하게 임시 로컬 HTML의 일반 버튼으로 읽기 요청을 실행했다. 이 파일은 commit/Production 배포 대상에 넣지 않으며 검사 후 제거한다. 비밀번호·세션 쿠키·토큰 값은 읽지 않았다.
+
+### 최종 로컬 B 재검사 완료
+
+사용자가 직접 B 비밀번호를 입력한 실제 내장 브라우저 탭에서 Dashboard와 B 이메일을 확인했다. Dashboard 새로고침 후에도 B 이메일이 유지됐으며 공동 API는 200 + member + A/B 두 멤버를 반환했다. 목록에는 공동/B-only만 포함됐고 실제 A-only ID는 404로 차단됐다. 검사 페이지 새로고침 후 공동 조회/역할도 유지됐다. B 로그아웃은 `/login`으로 이동했고 익명 `/` 재접근은 로그인 화면, 공동 API는 401이었다. A/B 결과의 캐시는 `private, no-store`다. 임시 로컬 검사 HTML은 제거했으며 commit/배포하지 않는다. 기존 Auth 코드는 변경하지 않았다. 최종 로컬 A/B smoke가 모두 통과했으므로 기존 workspace/RLS 변경을 main에 반영한다.

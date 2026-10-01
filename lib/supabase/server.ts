@@ -3,6 +3,7 @@ import "server-only";
 import { createServerClient } from "@supabase/ssr";
 import { cookies, headers } from "next/headers";
 import { getSupabaseConfig } from "./config";
+import type { Database } from "./database.types";
 
 export async function createClient() {
   const config = getSupabaseConfig();
@@ -12,7 +13,7 @@ export async function createClient() {
   const headerStore = await headers();
 
   // A new client per request keeps different users' sessions isolated.
-  return createServerClient(config.url, config.key, {
+  return createServerClient<Database>(config.url, config.key, {
     cookieOptions: {
       path: "/",
       sameSite: "lax",

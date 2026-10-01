@@ -22,3 +22,15 @@
 - Auth 로그인은 workspace 권한이나 DB RLS 구현 완료를 의미하지 않는다. 이번 단계에는 애플리케이션 테이블 조회/수정·RLS migration·Storage·Threads API가 없다.
 
 Production 배포에서는 위 두 공개 변수를 Production 범위에만 설정했다. 실제 값은 Git·문서에 기록하지 않았다. Supabase Site URL은 Production HTTPS 주소이며 별도 callback·OAuth·와일드카드 redirect는 추가하지 않았다. 실제 사용자 비밀번호 입력은 사용자가 직접 수행했고, 자동화 검증에서도 비밀번호·세션 토큰·쿠키 값을 읽거나 복사하지 않았다. Production 인증 응답의 `private`, `no-store`와 로그아웃 후 루트 차단을 확인했다.
+
+## 2026-10-01 — Workspace / RLS
+
+- 실제 `profiles`, `workspaces`, `workspace_members`에 RLS를 적용했다. `auth.uid()`의 DB 멤버십으로 접근을 결정하며 변경 가능한 사용자 metadata나 클라이언트가 지정한 사용자 ID를 신뢰하지 않는다.
+- 기본 PUBLIC/anon/authenticated 테이블 권한을 회수하고 authenticated SELECT만 부여한다. owner/member 모두 앱에서 멤버를 추가하거나 역할을 변경할 수 없다. INSERT/UPDATE/DELETE 정책·앱 RPC·초대 기능은 제공하지 않는다.
+- 자기 프로필과 공동 workspace 멤버의 표시 정보만 읽을 수 있다. profiles에 이메일·비밀번호·토큰을 복제하지 않는다. workspace마다 별도 멤버십과 역할을 유지한다.
+- 정책 재귀를 피하는 두 읽기 helper는 비노출 `private` 스키마에 둔다. postgres 소유 SECURITY DEFINER, 빈 search_path, 명시적 스키마, PUBLIC/anon 실행 권한 회수와 authenticated 실행 권한을 적용한다. 임의의 사용자 ID로 접근 주체를 바꾸거나 데이터를 쓰는 함수는 없다.
+- `GET /api/workspaces`와 ID 상세 API는 요청별 서버 클라이언트·서버 확인 사용자·실제 사용자 세션을 사용한다. 권한이 높은 키는 추가하지 않았다. 익명 401, 외부/없는 ID는 동일한 404이며 DB 오류 세부 사항은 노출하지 않는다. 응답은 `private, no-store`와 `Vary: Cookie`를 사용한다.
+- DB 멤버십을 매 조회에 확인하므로 권한 해제가 오래된 JWT metadata에 남지 않는다. 기존 Auth 클라이언트·로그인/로그아웃 동작과 Dashboard는 보존하며 자동 Auth trigger를 추가하지 않는다.
+- 실제 DB 테스트의 임시 멤버십 제거는 한 트랜잭션에서 ROLLBACK한다. 계정 비밀번호는 사용자가 직접 입력하고 테스트에서 키·세션 토큰·쿠키 값을 출력하거나 추출하지 않는다. 각 workspace의 운영 콘텐츠는 아직 mock이며 미래 테이블은 자체 RLS를 별도로 구현해야 한다.
+
+상세 권한 범위와 현재 제약은 `docs/WORKSPACE_ACCESS.md`에 기록한다. 현재 앱의 workspace 접근은 조회 전용이고 데이터 생성·멤버 관리·소유권 이전은 관리자 SQL 운영으로 제한한다.
