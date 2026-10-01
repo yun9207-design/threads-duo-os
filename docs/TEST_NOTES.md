@@ -1,5 +1,35 @@
 # TEST NOTES
 
+## 2026-10-01 — Scheduling 1단계
+
+실제 Supabase에 `20261001102605_draft_scheduling.sql`을 적용했다. approved 글의 예약시간만 저장하며 기존 Auth/Workspace/RLS/승인 이력 반복 검사는 수행하지 않았다. 연결 도구가 작업 중 잠시 사라졌다가 복구되어 실제 적용을 완료했다. 기존 브라우저 탭이 없어 새 탭을 열었으며 저장된 A 세션을 그대로 사용했다. 추가 로그인/사용자 수동 검증 요청은 없다.
+
+| 검사 | 결과 |
+| --- | --- |
+| approved 예약 저장 | 기존 실제 세션 UI에서 2026-10-01 22:00 KST 저장, 오늘 예약 1건 |
+| 예약시간 수정 | 2026-10-02 10:15 KST로 변경, 오늘 0 / 다가오는 1 |
+| 새로고침 | DB 조회로 예약 목록과 내일 10:15/다가오는 1 유지 |
+| 실제 DB 대조 | 검증 글 `d51af7e9-ce38-465c-92fd-c18e4fefa3d8`, approved, scheduled_at=`2026-10-02T01:15:00Z` |
+| draft/pending 예약 차단 | 실제 authenticated A subject SQL UPDATE 모두 `22023` 거절; fixture 전체 rollback |
+| 예약 취소 | UI 취소 → 새로고침 후 목록/예약 건수 0, DB scheduled_at=null |
+| 검증 글 정리 | 본 검증 글만 기존 soft delete로 정리, 사용자 콘텐츠 수정/삭제 없음 |
+| 자동 DB 검사 | `node scripts/test-scheduling.mjs` PASS: 저장·수정·취소·미승인/과거/infinity 차단·디스크 reopen 유지·승인 철회/삭제 해제·KST 날짜 경계 |
+| 품질 | lint/typecheck/production build PASS, 신규 schedule Route Handler 동적 빌드 |
+
+날짜 입력기의 자동 `.fill`이 분할 필드에 값을 반영하지 않아 브라우저의 지원되는 날짜 필드 `setValue`로 지정했다. 앱이나 브라우저 보안 설정 변경은 필요하지 않았다. [실제 예약 화면](screenshots/scheduling-live.jpg)을 저장했다.
+
+Supabase advisor에 신규 예약 구조의 security 경고는 없다. 기존 [Auth 유출 비밀번호 보호 비활성 경고](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection)는 동결 범위라 유지했다. 새 예약 인덱스의 [미사용 정보](https://supabase.com/docs/guides/database/database-linter?lint=0005_unused_index)는 적용 직후의 관찰이며 예약 조회용으로 유지한다. 기존 RLS 정책·Auth/Workspace 파일·이전 migration·MASTER_PLAN은 변경하지 않는다. 실제 env/테스트 DB/CLI 캐시는 Git 제외다.
+
+신규 API HTTP smoke, 최종 Git 보존 확인과 main/Vercel 배포 결과는 아래 후속 기록 및 해당 commit의 최종 실행 보고를 기준으로 한다.
+
+### 예약 기능 최종 자동 검사
+
+`node scripts/smoke-scheduling-http.mjs` PASS: 신규 예약 경로의 미래/취소 요청은 로그인 없는 호출에서 401, 외부 Origin은 403, 과거/존재하지 않는 날짜/추가 필드/누락 버전은 400이다. 캐시의 private와 no-store를 순서와 무관하게 확인했다. 로그인 요청은 하지 않았다.
+
+최종 lint/typecheck PASS, Production build PASS. 기존 tracked MD 21개 모두 존재하며 삭제 0개다. Auth/SessionControls/Workspace/Approval History 구성요소와 기존 migration에 diff가 없다. app/page 변경은 서버 기준 예약 집계 시각 prop만 추가한 것이다. MASTER_PLAN 원본/사본 SHA256은 `3073aaab4c243c773675df4e123c8e3508e09caf1bf9529effe67022dfa34dff`로 작업 전과 동일하다. 실제 예약 검증 글은 scheduled_at=null, deleted_at 기록 상태로 정리됐으며 예약 변경이 상태 변경 이력을 생성하지 않았다.
+
+실제 DB 적용과 위 자동 검사 결과로 현재 변경을 main에 commit/push하고 연결된 Vercel Git 배포를 사용한다. 추가 로그인·기반 RLS 반복·Threads 실행 기능은 진행하지 않는다.
+
 ## 2026-10-01 — Draft Approval History
 
 `20261001095837_draft_approval_history.sql`을 실제 프로젝트에 적용했다. 기존 Auth/Session/Workspace/기존 RLS 검사와 A/B 로그인은 반복하지 않았다. 새로운 이력 테이블의 멤버 SELECT 정책, private 기록 trigger, invoker 메모 RPC만 추가했다. 기존 CRUD/Dashboard/MASTER_PLAN/MD를 유지한다.

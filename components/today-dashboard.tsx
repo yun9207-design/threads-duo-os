@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Icon } from "@/components/icon";
 import { SessionControls } from "@/components/session-controls";
 import { DraftApprovalHistory } from "@/components/draft-approval-history";
 import type { DraftWorkspace } from "@/lib/drafts";
 import type { DraftRow, DraftStatus } from "@/lib/supabase/database.types";
+import { kstInput, kstInputToIso, scheduledDate, scheduleSummary } from "@/lib/draft-scheduling";
 
 const statusLabels: Record<DraftStatus, string> = { draft: "초안", pending: "승인 대기", approved: "승인됨" };
 type Filter = "all" | DraftStatus;
@@ -14,8 +15,9 @@ function savedDate(value: string) {
   return new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", month: "numeric", day: "numeric" }).format(new Date(value));
 }
 
-export function TodayDashboard({ userEmail, workspace, initialDrafts, loadError }: {
+export function TodayDashboard({ userEmail, workspace, initialDrafts, loadError, referenceTime }: {
   userEmail: string; workspace: DraftWorkspace | null; initialDrafts: DraftRow[]; loadError: string;
+  referenceTime: string;
 }) {
   const [drafts, setDrafts] = useState(initialDrafts);
   const [filter, setFilter] = useState<Filter>("all");
@@ -28,6 +30,12 @@ export function TodayDashboard({ userEmail, workspace, initialDrafts, loadError 
   const [error, setError] = useState(loadError);
   const [notice, setNotice] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [scheduleTime, setScheduleTime] = useState("");
+  const [scheduleClock, setScheduleClock] = useState(referenceTime);
+  useEffect(() => {
+    const timer = setInterval(() => setScheduleClock(new Date().toISOString()), 30000);
+    return () => clearInterval(timer);
+  }, []);
   const workspaceName = workspace?.workspace.name ?? "워크스페이스";
   const baseUrl = workspace ? "/api/workspaces/" + workspace.workspace.id + "/drafts" : "";
   const visibleDrafts = drafts.filter((draft) => filter === "all" || draft.status === filter);
@@ -38,6 +46,8 @@ export function TodayDashboard({ userEmail, workspace, initialDrafts, loadError 
     approved: drafts.filter((draft) => draft.status === "approved").length,
   };
   const authorName = (id: string) => workspace?.members.find((member) => member.profile_id === id)?.profiles?.display_name ?? "워크스페이스 멤버";
+  const schedule = scheduleSummary(drafts, scheduleClock);
+  const unsavedChanges = editing && (topic !== editing.topic || body !== editing.body || status !== editing.status);
 
   function openDraft(draft: DraftRow | null) {
     setEditing(draft);
@@ -45,6 +55,7 @@ export function TodayDashboard({ userEmail, workspace, initialDrafts, loadError 
     setBody(draft?.body ?? "");
     setStatus(draft?.status ?? "draft");
     setApprovalNote("");
+    setScheduleTime(draft?.scheduled_at ? kstInput(draft.scheduled_at) : "");
     setConfirmDelete(false);
     setNotice("");
     if (!loadError) setError("");
@@ -97,6 +108,7 @@ export function TodayDashboard({ userEmail, workspace, initialDrafts, loadError 
       // A successful DB response becomes the editor's next concurrency version.
       setEditing(result.draft); setTopic(result.draft.topic); setBody(result.draft.body);
       setStatus(result.draft.status); setApprovalNote("");
+      setScheduleTime(result.draft.scheduled_at ? kstInput(result.draft.scheduled_at) : "");
       setConfirmDelete(false); saved = true;
       await reloadDrafts();
       setNotice("글이 저장되었습니다.");
@@ -121,6 +133,26 @@ export function TodayDashboard({ userEmail, workspace, initialDrafts, loadError 
     } finally { setBusy(false); }
   }
 
+  async function saveSchedule(cancel = false) {
+    if (busy || !editing || !workspace || unsavedChanges) return;
+    setBusy(true); setError(""); setNotice("");
+    let saved = false;
+    try {
+      const scheduledAt = cancel ? null : kstInputToIso(scheduleTime);
+      const result: { draft: DraftRow } = await request(baseUrl + "/" + editing.id + "/schedule", "PATCH", {
+        scheduledAt, expectedUpdatedAt: editing.updated_at,
+      });
+      setEditing(result.draft);
+      setScheduleTime(result.draft.scheduled_at ? kstInput(result.draft.scheduled_at) : "");
+      saved = true;
+      await reloadDrafts();
+      setNotice(cancel ? "예약이 취소되었습니다." : "예약시간이 저장되었습니다.");
+    } catch (failure) {
+      setError(saved ? "예약은 저장됐지만 목록을 갱신하지 못했습니다. 목록 새로고침을 눌러 주세요."
+        : failure instanceof Error ? failure.message : "예약을 저장하지 못했습니다.");
+    } finally { setBusy(false); }
+  }
+
   return (
     <div className="app-shell">
       <a className="skip-link" href="#main">본문으로 건너뛰기</a>
@@ -140,6 +172,7 @@ export function TodayDashboard({ userEmail, workspace, initialDrafts, loadError 
           <a className="nav-item" href="#studio"><Icon name="pen" /><span>글 작성</span></a>
           <a className="nav-item" href="#drafts"><Icon name="review" /><span>글 목록</span><span className="nav-count">{counts.all}</span></a>
           <a className="nav-item" href="#review"><Icon name="check" /><span>승인 대기</span><span className="nav-count">{counts.pending}</span></a>
+          <a className="nav-item" href="#schedule"><Icon name="clock" /><span>예약된 글</span><span className="nav-count">{schedule.scheduled.length}</span></a>
         </nav>
         <div className="sidebar-bottom">
           <div className="demo-note"><span className="status-dot" />함께 만드는 작은 실험<p>두 사람의 아이디어를<br />한곳에 차곡차곡 쌓아보세요.</p></div>
@@ -168,6 +201,15 @@ export function TodayDashboard({ userEmail, workspace, initialDrafts, loadError 
             ] as const).map(([key, label, icon, caption]) => (
               <article className="stat-card" key={key}><div className="stat-top"><span>{label}</span><span className={"stat-icon " + ({ all: "neutral", draft: "orange", pending: "violet", approved: "green" })[key]}><Icon name={icon} size={19} /></span></div>
                 <div className="stat-value">{counts[key]}<span>건</span></div><p>{caption}</p>
+              </article>
+            ))}
+          </section>
+          <section className="stats-grid schedule-stats" aria-label="저장된 예약 요약">
+            {([["today", "오늘 예약", "한국 시간 오늘에 지정된 예약"],
+              ["upcoming", "다가오는 예약", "한국 시간 내일 이후의 예약"]] as const).map(([key, label, caption]) => (
+              <article className="stat-card" key={key}>
+                <div className="stat-top"><span>{label}</span><span className="stat-icon orange"><Icon name="clock" size={19} /></span></div>
+                <div className="stat-value">{schedule[key]}<span>건</span></div><p>{caption}</p>
               </article>
             ))}
           </section>
@@ -227,10 +269,42 @@ export function TodayDashboard({ userEmail, workspace, initialDrafts, loadError 
                 </fieldset>
               </form>
               {editing && <p className="studio-footnote">작성자 {authorName(editing.author_profile_id)} · 마지막 저장 {savedDate(editing.updated_at)}</p>}
+              {editing && <section className="draft-scheduling" aria-label="글 예약">
+                <h3>예약시간</h3>
+                <p>{editing.scheduled_at ? "저장된 예약: " + scheduledDate(editing.scheduled_at) + " KST" : "저장된 예약이 없습니다."}</p>
+                {editing.status === "approved" ? <>
+                  <label htmlFor="draft-schedule-time">예약 날짜와 시간 (한국 시간)</label>
+                  <input id="draft-schedule-time" type="datetime-local" value={scheduleTime}
+                    min={kstInput(scheduleClock)} disabled={busy || !!unsavedChanges}
+                    onChange={(event) => setScheduleTime(event.target.value)} />
+                  <div className="draft-editor-actions">
+                    <button className="button primary" type="button" disabled={busy || !!unsavedChanges || !scheduleTime}
+                      onClick={() => saveSchedule()}>{editing.scheduled_at ? "예약 변경" : "예약 저장"}</button>
+                    {editing.scheduled_at && <button className="draft-secondary" type="button" disabled={busy || !!unsavedChanges}
+                      onClick={() => saveSchedule(true)}>예약 취소</button>}
+                  </div>
+                  {unsavedChanges && <p>글 변경사항을 먼저 저장한 뒤 예약해 주세요.</p>}
+                </> : <p>승인된 글에만 예약시간을 지정할 수 있습니다.</p>}
+                <p>시간만 저장합니다. 실제 Threads 게시는 실행되지 않습니다.</p>
+              </section>}
               {editing && workspace && <DraftApprovalHistory key={editing.id + editing.updated_at}
                 workspaceId={workspace.workspace.id} draftId={editing.id} actorName={authorName} />}
             </section>
           </div>
+          <section className="panel drafts-pending-panel" id="schedule" aria-label="예약된 글 목록">
+            <div className="panel-heading"><div><span className="section-kicker">PLAN THE NEXT MOMENT</span><h2>예약된 글 <span className="count-pill">{schedule.scheduled.length}</span></h2></div></div>
+            <p className="panel-description">한국 시간 예약일 오름차순 · 지정 시간이 지나도 자동 게시되지 않습니다.</p>
+            <div className="review-list">
+              {schedule.scheduled.map((draft) => (
+                <article className="review-card" key={draft.id}>
+                  <div className="review-meta"><span>{authorName(draft.author_profile_id)}</span><time dateTime={draft.scheduled_at!}>{scheduledDate(draft.scheduled_at!)} KST</time></div>
+                  <h3>{draft.topic}</h3><p>{draft.body}</p>
+                  <a className="approve-button" href="#studio" onClick={() => { if (!busy) openDraft(draft); }}>예약 관리<Icon name="arrow" size={14} /></a>
+                </article>
+              ))}
+              {!schedule.scheduled.length && <p className="panel-description">예약된 글이 없습니다. 승인된 글을 열어 예약시간을 지정해 보세요.</p>}
+            </div>
+          </section>
           <section className="panel drafts-pending-panel" id="review">
             <div className="panel-heading"><div><span className="section-kicker">A SECOND PAIR OF EYES</span><h2>확인을 기다려요 <span className="count-pill violet-pill">{counts.pending}</span></h2></div></div>
             <p className="panel-description">승인 대기 상태로 저장된 글입니다. 글을 열어 함께 검토해 보세요.</p>

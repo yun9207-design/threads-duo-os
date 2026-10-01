@@ -1,5 +1,7 @@
 # MVP SPEC
 
+최신 추가 범위는 **Scheduling 1단계**다. approved 글만 미래 예약시간을 저장·수정·취소할 수 있으며 Dashboard에 시간순 목록과 KST 오늘/내일 이후 건수를 표시한다. DB에 저장된 예약은 새로고침 후 유지된다. 실제 게시 작업자/Threads API는 없다. 상세는 `docs/SCHEDULING.md`를 따른다.
+
 최신 추가 범위는 Draft 승인 이력이다. 실제 상태 변경마다 변경자·이전/새 상태·시간·선택적 메모를 저장하고 기존 편집 카드에서 시간순으로 조회한다. 기존 CRUD와 기반 인증/권한을 보존한다. 아래는 이전 CRUD 단계의 완료 기록이며 최신 이력 구조는 `docs/APPROVAL_HISTORY.md`를 따른다.
 
 현재 추가 구현은 Drafts의 작성·조회·수정·soft delete와 draft/pending/approved 상태 저장이다. Dashboard의 글 목록·건수·승인 대기 카드가 실제 DB 조회를 사용하며 mock fallback은 없다. workspace 이름/역할은 기존 읽기 기반을 재사용한다. 기존 Auth/Session/Workspace/RLS와 MASTER_PLAN은 유지한다. 실제 Supabase 적용과 기존 세션의 브라우저 CRUD·새로고침 유지·관리자 복구·외부 workspace 차단 및 lint/type/build를 통과해 Draft CRUD를 완료 처리했다. 최신 상태는 `docs/DRAFTS.md`를 기준으로 한다. 승인 이력·Threads·AI·예약·게시·Analytics·결제는 이번 범위가 아니다.
@@ -13,8 +15,8 @@
 - [ ] AI draft mock
 - [x] approval status: draft/pending/approved (상태 저장만, 승인 이력 없음)
 - [x] Approval History (변경자/상태 전환/시간/선택 메모, 멤버 전용 조회)
-- [ ] schedule datetime
-- [ ] queue list
+- [x] schedule datetime (approved 글만 저장·수정·취소, 실제 DB 적용)
+- [x] queue list (예약시간 목록만, 실행 큐/자동 게시 없음)
 - [x] Supabase persistence (Drafts 범위)
 - [x] mobile layout (Today mock 화면)
 

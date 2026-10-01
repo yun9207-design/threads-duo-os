@@ -3,7 +3,7 @@ export type DraftStatus = "draft" | "pending" | "approved";
 export type DraftRow = {
   id: string; workspace_id: string; author_profile_id: string;
   topic: string; body: string; status: DraftStatus;
-  created_at: string; updated_at: string; deleted_at: string | null;
+  created_at: string; updated_at: string; deleted_at: string | null; scheduled_at: string | null;
 };
 export type DraftApprovalHistoryRow = {
   id: string; draft_id: string; workspace_id: string; actor_user_id: string;
@@ -44,7 +44,7 @@ export type Database = {
         Insert: {
           workspace_id: string; author_profile_id: string; topic: string; body?: string; status?: DraftStatus;
         };
-        Update: { topic?: string; body?: string; status?: DraftStatus; deleted_at?: string | null };
+        Update: { topic?: string; body?: string; status?: DraftStatus; deleted_at?: string | null; scheduled_at?: string | null };
         Relationships: [{
           foreignKeyName: "drafts_workspace_id_fkey";
           columns: ["workspace_id"]; isOneToOne: false;

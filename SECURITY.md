@@ -1,5 +1,9 @@
 # SECURITY
 
+## Scheduling 1단계 추가 경계
+
+기존 Auth/Workspace/RLS를 유지하고 scheduled_at UPDATE 열만 허용한다. 서버는 기존 사용자·멤버십·버전 조건을 사용하며 DB CHECK/SECURITY INVOKER trigger가 직접 Data API에서도 활성 approved 및 새 예약의 미래 시각 조건을 강제한다. 신규 API는 기존 same-origin JSON/private-no-store를 재사용하며 상태/identity 필드 입력을 허용하지 않는다. 비밀키·새 환경변수·게시 권한·외부 API 호출은 추가하지 않았다. 상세는 `docs/SCHEDULING.md`를 따른다.
+
 ## Approval History 추가 경계
 
 이력은 멤버 SELECT만 허용하고 클라이언트 INSERT/UPDATE/DELETE는 금지한다. 변경자 ID는 auth.uid에서 결정한다. private 기록 trigger의 제한된 SECURITY DEFINER는 비어 있는 search_path, 명시적 사용자/멤버십 검사, 직접 EXECUTE 금지로 보호한다. 메모 전달 RPC는 SECURITY INVOKER로 기존 drafts RLS·열 권한·버전 조건을 유지한다. React는 메모를 텍스트로 표시한다. 공개/secret key 및 기존 Auth/Workspace 정책은 변경하지 않았다. 상세는 `docs/APPROVAL_HISTORY.md`를 따른다.

@@ -1,5 +1,9 @@
 # DB SCHEMA
 
+## Scheduling 1단계 추가 스키마
+
+실제 적용 migration: `20261001102605_draft_scheduling.sql`. 기존 drafts에 nullable `scheduled_at timestamptz` 하나만 추가했다. 활성 approved 글만 예약하도록 CHECK/trigger를 사용하고 새 시간은 미래·유한한 값만 받는다. 승인 철회/soft delete는 예약을 해제한다. 기존 workspace 멤버 RLS를 유지하고 scheduled_at UPDATE 열 권한 및 활성 예약 부분 인덱스만 추가했다. 테이블·게시 작업자·추가 상태값은 만들지 않는다. 상세는 `docs/SCHEDULING.md`를 따른다.
+
 ## 현재 Approval History 추가 스키마
 
 실제 적용 migration: `20261001095837_draft_approval_history.sql`. `draft_approval_history(id, draft_id, workspace_id, actor_user_id, from_status, to_status, note, created_at)`를 추가했다. draft/workspace/actor FK 및 조회 인덱스, 현재 workspace 멤버만 읽는 RLS를 사용한다. 앱의 직접 이력 쓰기는 허용하지 않으며 상태 변경 trigger가 원자적으로 기록한다. 메모를 전달하는 SECURITY INVOKER RPC와 private trigger의 권한 구조는 `docs/APPROVAL_HISTORY.md`에 있다. 기존 테이블 열·기존 RLS·Auth는 변경하지 않았다.

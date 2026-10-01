@@ -20,5 +20,5 @@ export default async function HomePage() {
     loadError = "워크스페이스의 글을 불러오지 못했습니다. 잠시 후 새로고침해 주세요.";
   }
   return <TodayDashboard userEmail={user.email ?? "로그인 사용자"}
-    workspace={workspace} initialDrafts={drafts} loadError={loadError} />;
+    workspace={workspace} initialDrafts={drafts} loadError={loadError} referenceTime={new Date().toISOString()} />;
 }

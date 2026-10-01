@@ -1598,3 +1598,11 @@ main {
 .draft-approval-history li strong { font-size: 12px; }
 .draft-approval-history li div { margin-top: 6px; font-size: 10px; color: #8a909d; }
 .draft-approval-history .approval-note { margin: 8px 0 0; font-size: 11px; line-height: 1.7; white-space: pre-wrap; }
+.schedule-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 16px; }
+.draft-scheduling { padding: 20px 24px; border-top: 1px solid var(--line); }
+.draft-scheduling h3 { margin: 0 0 12px; font-size: 15px; }
+.draft-scheduling p { font-size: 12px; line-height: 1.7; color: var(--muted); }
+.draft-scheduling label { display: block; margin: 16px 0 8px; font-size: 12px; }
+.draft-scheduling input { width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 8px; font: inherit; background: #fff; color: inherit; }
+.draft-scheduling input:disabled { opacity: .6; }
+@media (max-width: 480px) { .draft-scheduling { padding: 20px; } }

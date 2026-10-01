@@ -107,3 +107,21 @@ export async function listDraftApprovalHistory(workspaceId: string, draftId: str
     if (data.length < 100) return history;
   }
 }
+
+export async function changeDraftSchedule(workspaceId: string, draftId: string,
+  expectedUpdatedAt: string, scheduledAt: string | null) {
+  const { client } = await workspaceClient(workspaceId);
+  if (!isUuid(draftId)) throw new DraftAccessError(404);
+  const { data, error } = await client.from("drafts").update({ scheduled_at: scheduledAt })
+    .eq("workspace_id", workspaceId).eq("id", draftId).eq("updated_at", expectedUpdatedAt)
+    .is("deleted_at", null).select("*").maybeSingle();
+  if (error?.code === "22023" || error?.code === "23514") {
+    throw new DraftInputError("승인된 글에만 미래 예약시간을 지정할 수 있습니다.");
+  }
+  if (error) throw new DraftAccessError(503);
+  if (!data) {
+    await readDraft(workspaceId, draftId);
+    throw new DraftAccessError(409);
+  }
+  return data;
+}
