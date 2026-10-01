@@ -46,3 +46,9 @@ Supabase와 Threads API는 연결하지 않는다. 로그인, 영속 저장, 실
 Auth 외 Stage B 기능(users/workspaces/drafts/RLS/Storage), 회원가입·비밀번호 재설정·Google/Threads OAuth, AI API, 실제 예약·게시는 이번 범위에 없다. 기존 운영 데이터와 상호작용은 계속 mock이다. GitHub push·Vercel 배포는 수행하지 않았다.
 
 다음 권장 단계는 **별도 배포 작업으로 Vercel에 공개 환경변수를 설정하고 Auth 변경을 배포해 Production 흐름을 검증하는 것** 하나다. 현재 작업의 로컬 범위에는 포함하지 않으며 이번에는 실행하지 않았다.
+
+## 2026-10-01 — Auth Production 배포 완료
+
+후속 요청의 Auth Production 배포 범위를 완료했다. 공개 환경변수 두 개를 Production에 설정하고 Supabase Site URL을 Production 주소로 저장했다. Auth 커밋 `ef46831`의 main push로 시작된 Vercel 배포가 Ready 상태가 됐다. 기존 계정의 정상 로그인·사용자 이메일 표시와 같은 사용자 창의 새로고침 유지·로그아웃·익명 재접근 차단, 공개 MASTER_PLAN을 실제 Production에서 검증했다. 로컬 최종 세션 흐름 재확인과 lint/typecheck/build도 통과했다.
+
+이번에는 Auth 배포와 검증·설정 정리만 수행했다. 앱 DB·Threads API·AI·새 UI 기능은 추가하지 않았고 운영 데이터는 mock이다. 다음 권장 단계는 **두 사용자의 workspace 접근 권한과 RLS 설계 검토** 하나이며, 이 작업에서는 구현하지 않는다.

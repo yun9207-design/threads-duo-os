@@ -170,3 +170,25 @@ README·PROJECT_PLAN·MVP_SPEC·DB_SCHEMA의 현재 상태를 갱신했고 SECUR
 - 사용자는 기존 계정으로 로컬 로그인 → Dashboard 이메일 확인 → F5 세션 유지 → 로그아웃 → 익명 `/` 직접 접근 차단을 다시 실행하고 모두 정상이라고 확인했다. 비밀번호·세션 토큰을 읽거나 전달받지 않았다.
 - 개발 3000 및 최종 Production build 3001에서 익명 `/login` HTTP 200, `/` HTTP 307 → `/login`, `/MASTER_PLAN.html` HTTP 200을 확인했다. 루트 응답에 Dashboard 데이터 노출 없음. 3001 인증 응답에 `private`, `no-store` 확인. 두 MASTER_PLAN HTTP 본문 SHA256이 원본과 동일하다. 실제 Chrome에서도 로그인 화면·익명 접근 차단·마스터플랜 기존 화면을 다시 확인했다.
 - `git fetch origin main` 후 HEAD와 origin/main의 차이는 0/0으로, 원격 추가 변경 없음. 이후 Auth 커밋의 main push를 통해 Vercel Git 배포를 진행한다. Production 정상 세션은 배포 완료 후 기존 테스트 계정으로 검증한다.
+
+## 2026-10-01 — Auth Production 실제 검증 완료
+
+- Auth 커밋: `ef46831b01c0ce9da468fd5b67e181a0b066a6e3` (`feat: add Supabase email authentication`). GitHub main push 성공. Auth 외 기능 변경 없음.
+- Vercel Git 배포: `dpl_81TyGshTswxJhQuSScjFSAT1Sgru`, Production, Ready, build 27초, main/위 커밋 일치. [배포 상세](https://vercel.com/bluegee/threads-duo-os/81TyGshTswxJhQuSScjFSAT1Sgru)
+- Production alias: `https://threads-duo-os.vercel.app/`. 빌드별 URL: `https://threads-duo-db5sp8l7h-bluegee.vercel.app/`.
+
+| 항목 | Production 결과 | 증거 방식 |
+| --- | --- | --- |
+| `/login` | HTTP 200, 로그인 폼 정상, 설정 누락 안내 없음 | HTTP 요청·실제 Chrome |
+| 정상 이메일/비밀번호 로그인 | Dashboard와 현재 사용자 이메일 표시 | 기존 테스트 계정의 사용자 직접 로그인·동일 사용자 탭 자동화 확인 |
+| 새로고침 세션 유지 | Dashboard·이메일·로그아웃 버튼 유지 | 로그인된 동일 Production Chrome 탭을 자동화로 reload |
+| 로그아웃 | `/login` 이동·로그인 폼 표시 | 동일 탭 로그아웃 버튼 클릭·URL 확인 |
+| 로그아웃 후 `/` 직접 접근 | `/login` 이동, Dashboard 미표시 | 동일 탭 직접 탐색·별도 익명 HTTP 307 확인 |
+| `/MASTER_PLAN.html` | HTTP 200, 기존 탭·내용 정상 | 실제 Production 브라우저·HTTP SHA256이 원본과 동일 |
+| 인증 경로 캐시 | `private`, `no-store`; `/login` CDN MISS | 익명 `/`·`/login` 실제 응답 헤더 |
+| 브라우저 오류 | error/warn 로그 없음 | 실제 사용자 Production 탭의 console 검사 |
+| 서버 오류 | Warning/Error/Fatal 0 | 해당 Auth 배포로 필터한 최근 30분 Vercel 런타임 로그; 인증 상태 `/` 200과 로그아웃 후 307 기록 |
+
+테스트 사용자는 로컬에서 준비한 기존 계정만 사용했다. 자동화용 새 사용자·가짜 세션·비밀번호 재설정은 만들지 않았다. 사용자가 직접 비밀번호를 입력한 후 실제 로그인된 사용자 탭을 선택하여 나머지 흐름을 검증했다. 비밀번호·세션 쿠키·토큰 값은 읽거나 전달받지 않았다. 로그인하지 않은 별도 자동화 탭의 상태를 정상 사용자 세션으로 오인하지 않았다.
+
+검증 화면은 Git에서 제외된 `.tools/vercel-production-env.jpg`, `.tools/supabase-production-url.jpg`, `.tools/vercel-auth-ready.jpg`, `.tools/production-auth-session.jpg`, `.tools/production-auth-logout.jpg`에 로컬 보관했다. README·PROJECT_PLAN·MVP_SPEC·SECURITY에 현재 Production 상태를 추가하고 이 검증 기록을 문서 커밋으로 main에 반영한다. 운영 데이터는 계속 mock이며 MASTER_PLAN·모든 기존 MD·기존 Dashboard는 보존했다.

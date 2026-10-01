@@ -1,7 +1,7 @@
 # MVP SPEC
 
 ## P0
-- [x] 이메일 로그인 (Auth 1단계 로컬 검증 완료; Production 미배포)
+- [x] 이메일 로그인 (Auth 1단계 로컬·Production 검증 완료)
 - [ ] 2명 workspace
 - [ ] Threads account placeholder
 - [x] Today dashboard (mock 첫 화면)
@@ -54,3 +54,5 @@ Today 화면에서 제공하는 상태 변경은 UI 데모이며 Draft CRUD, 영
 실제 Supabase URL·publishable 공개 키를 Git에서 제외된 `.env.local`에 설정했다. 잘못된 로그인 요청의 HTTP 400 `invalid_credentials`와 화면 오류를 로컬 Chrome에서 확인했다. 로그인 화면·입력 검증·설정 누락 오류·익명 접근 차단·공개 마스터플랜도 확인했으며 lint/typecheck/build가 통과했다. 사용자 제공 화면으로 실제 로그인·이메일 표시를 확인했고, F5 후 로그인 유지와 로그아웃 → `/login` 이동 및 이후 `/` 직접 접근 차단은 사용자 수동 확인으로 검증했다. 이메일 로그인 P0의 Auth 1단계 로컬 범위를 완료 처리한다. Production에는 배포하지 않았다.
 
 workspace·Threads 계정·draft·승인·큐·수치는 기존 mock으로 유지한다. DB·Storage·AI·Threads API·실제 예약/게시 기능은 구현하지 않았다.
+
+후속 Production 배포 완료: `https://threads-duo-os.vercel.app`에서 기존 테스트 계정 로그인·Dashboard 이메일·새로고침 유지·로그아웃·익명 접근 차단을 확인했다. `/MASTER_PLAN.html`도 원본 내용으로 제공한다. 공개 설정은 URL·publishable 키 두 변수만 사용한다. 다른 P0 기능의 완료 상태는 바꾸지 않는다.

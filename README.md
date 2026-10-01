@@ -115,3 +115,9 @@ Copy-Item .env.example .env.local
 `app/login/page.tsx`와 `components/login-form.tsx`는 로그인 화면, `components/session-controls.tsx`는 사용자 이메일과 로그아웃 버튼이다. `lib/supabase/client.ts`는 브라우저용, `lib/supabase/server.ts`는 요청별 서버용 클라이언트다. `proxy.ts`와 `lib/supabase/proxy.ts`는 `/`·`/login`의 세션 갱신과 접근 보호를 처리한다. 인증 경로는 동적 렌더링과 캐시 방지를 사용한다. [공식 SSR 안내](https://supabase.com/docs/guides/auth/server-side/nextjs)
 
 로컬 Chrome에서 로그인 표시, 입력 검증, 설정 누락 시 오류, 익명 `/` 접근 차단, 마스터플랜 보존을 확인했다. 실제 공개 설정 적용 후 잘못된 로그인 요청에 Supabase의 HTTP 400 `invalid_credentials` 응답과 화면 오류가 표시됐다. 사용자는 실제 계정의 Dashboard·이메일 표시·F5 후 로그인 유지, 로그아웃 → `/login` 이동, 이후 `/` 직접 접근 → `/login` 차단을 확인했다. 사용자 세션은 자동화 브라우저와 달라 정상 세션 흐름은 수동 검증으로 기록한다. lint·typecheck·production build 통과. 상세 결과는 `docs/TEST_NOTES.md`에 있다. 이번 Auth 변경은 로컬 작업만 수행했으며 GitHub push나 Vercel 재배포는 하지 않았다.
+
+## 2026-10-01 — Auth Production 배포 및 검증 완료
+
+후속 배포 요청에 따라 Auth 커밋 `ef46831`을 GitHub `main`에 push했고 Vercel Production 배포가 Ready 상태로 완료됐다. 현재 주소는 [threads-duo-os.vercel.app](https://threads-duo-os.vercel.app/)이다. Vercel 프로젝트의 Environment Variables에 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` 두 공개 변수를 Production 대상으로 저장했다. `.env.local`은 commit하지 않았고 ANON_KEY 대체 설정은 제거했다. 공개 변수 변경 시 새 Production build가 필요하다.
+
+Supabase Site URL은 `https://threads-duo-os.vercel.app`으로 설정했다. 현재 비밀번호 로그인은 callback이 필요하지 않으며 OAuth·추가 Redirect URL은 구현하지 않았다. 기존 테스트 계정으로 실제 Production 로그인과 이메일 표시를 확인하고, 같은 사용자 창을 자동화로 새로고침해 세션 유지, 로그아웃 → `/login`, 익명 `/` 재접근 차단을 검증했다. `/login`·`/MASTER_PLAN.html` HTTP 200, MASTER_PLAN 원본 SHA256 일치도 확인했다. 배포 전 lint/typecheck/build 통과. 기존 Dashboard 운영 데이터는 계속 mock이다. 상세 증거는 `docs/TEST_NOTES.md`에 기록했다.

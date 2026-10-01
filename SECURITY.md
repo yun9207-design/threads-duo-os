@@ -20,3 +20,5 @@
 - 공개 키 설정이 없거나 세션 확인에 실패하면 `/`는 `/login`으로 이동한다. 데모 우회 계정·가짜 토큰·하드코딩 키는 제공하지 않는다. 로그인 실패는 일반적인 메시지로 표시하며 비밀번호·SDK 응답·토큰을 로그에 출력하지 않는다.
 - 로그아웃은 `scope: "local"`로 현재 세션을 종료한 뒤 전체 페이지 이동으로 이전 인증 화면 캐시를 버린다. `/MASTER_PLAN.html`과 정적 자산은 공개 경로로 유지한다.
 - Auth 로그인은 workspace 권한이나 DB RLS 구현 완료를 의미하지 않는다. 이번 단계에는 애플리케이션 테이블 조회/수정·RLS migration·Storage·Threads API가 없다.
+
+Production 배포에서는 위 두 공개 변수를 Production 범위에만 설정했다. 실제 값은 Git·문서에 기록하지 않았다. Supabase Site URL은 Production HTTPS 주소이며 별도 callback·OAuth·와일드카드 redirect는 추가하지 않았다. 실제 사용자 비밀번호 입력은 사용자가 직접 수행했고, 자동화 검증에서도 비밀번호·세션 토큰·쿠키 값을 읽거나 복사하지 않았다. Production 인증 응답의 `private`, `no-store`와 로그아웃 후 루트 차단을 확인했다.
