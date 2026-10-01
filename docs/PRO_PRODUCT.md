@@ -33,9 +33,11 @@ Meta 토큰이 없으면 실행기는 blocked 상태를 기록하고 claim하지
 - `THREADS_WORKSPACE_ID`: 게시할 workspace ID.
 - `THREADS_PUBLISHING_SECRET`: 기존 private config digest와 일치하는 실행기 capability.
 
-환경변수 적용 후 owner가 Accounts에서 계정 연결을 확인한다. Meta access token이 준비되지 않은 현재 상태에서 외부 게시 성공을 주장하지 않는다. Cron의 기존 인증키 전송 설정은 자동 승인 검토가 별도 승인을 요구해 승인 대기 중이다.
+환경변수 적용 후 owner가 Accounts에서 계정 연결을 확인한다. Meta access token이 준비되지 않은 현재 상태에서 외부 게시 성공을 주장하지 않는다.
 
-Cron 설치 SQL은 `supabase/pending/queue_dispatch.sql`에 준비되어 있으며 아직 적용하지 않았다. 실제 토큰과 이 설정이 준비되기 전에는 **작성/저장/예약/수정/취소 화면만 사용 가능하며 시간에 따른 자동 외부 게시를 실행하지 않는다.**
+Cron 설치 SQL `20261001205155_queue_dispatch.sql`을 적용했다. 사용자의 계속 지시 후 자동 승인 검토도 허용됐으며 기존 workspace capability는 Vault에 암호화해 저장했다. 활성 Cron이 1분마다 Production 실행기를 호출하고 HTTP 200을 받아 `blocked / Meta 계정 연결 필요`를 DB에 기록하는 것을 확인했다. **작성/저장/예약/수정/취소는 사용할 수 있으며 실제 외부 게시만 Meta 토큰 준비를 기다린다.**
+
+`net`/`vault` schema는 공개 Data API에 노출하지 않는다. 직접 schema 지정 요청도 PGRST106/406으로 거절됨을 확인했다. Supabase 관리 pg_net의 내부 테이블 PUBLIC grant는 extension owner 권한이라 postgres의 REVOKE가 적용되지 않았다. 따라서 해당 schema를 API에 추가하거나 일반 앱에 SQL 실행 권한을 제공하면 안 된다. Vault 원본 조회 권한은 일반 사용자에게 없다.
 
 ## Production 배포
 

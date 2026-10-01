@@ -6,7 +6,9 @@
 
 실제 Supabase에 P0/requeue migration을 적용하고 기존 A subject의 신규 예약 저장 RPC를 transaction smoke 후 rollback했다. 브라우저 격리 preview는 실제 ProductApp+Postgres로 작성/미리보기/임시저장/예약 등록/승인 이력 연결, Queue 새로고침 유지/시간 수정/취소, 두 글 일괄 시간 배분/전체 예약을 확인했다. 실제 운영 사이트에 preview/Auth 우회 코드는 추가하지 않는다. Meta 토큰은 아직 없으며 자동 Cron 키 전송은 승인 대기다. 현재 사용 화면과 설치 경계는 `PRO_PRODUCT.md`를 따른다.
 
-main `07dcc24` push와 Vercel Production 배포 완료. 신규 5개 페이지/공통 제품 stylesheet/예약 실행기 경로의 자동 smoke를 수행했다. 새 상태 조회 API에서 WorkspaceAccessError를 503으로 처리하던 매핑을 401로 보완했다. lint/typecheck/build 및 신규 browser bundle의 서버 비밀값 미포함 확인 PASS. 추가 수동 로그인은 요청하지 않았다. Cron SQL은 승인될 때까지 `supabase/pending/queue_dispatch.sql`로 보존하며 DB에 적용하지 않는다.
+main `07dcc24` push와 Vercel Production 배포 완료. 신규 5개 페이지/공통 제품 stylesheet/예약 실행기 경로의 자동 smoke를 수행했다. 새 상태 조회 API에서 WorkspaceAccessError를 503으로 처리하던 매핑을 401로 보완했다. lint/typecheck/build 및 신규 browser bundle의 서버 비밀값 미포함 확인 PASS. 추가 수동 로그인은 요청하지 않았다.
+
+사용자의 ‘계속’ 지시 후 Cron 설치 재요청이 자동 승인 검토를 통과했다. `20261001205155_queue_dispatch.sql` 적용 및 기존 capability의 Vault 저장을 완료했다. 실제 매분 Production 호출은 HTTP 200, timeout/error 없음, DB heartbeat `blocked / Meta 계정 연결 필요`다. 실제 글을 claim하거나 외부 게시하지 않았다. 관리 pg_net의 SQL 권한 회수 시도는 owner 제한으로 적용되지 않았으며 `net`/`vault` Data API 접근은 실제 PGRST106/406 차단을 확인했다. 해당 schema의 API 미노출을 유지한다.
 
 ## 2026-10-01 — Threads 실제 게시 엔진 1단계
 

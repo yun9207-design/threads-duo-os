@@ -17,7 +17,7 @@ export async function productFixture(){
     grant usage on schema public,auth to anon,authenticated;
     grant execute on function auth.uid() to anon,authenticated;`);
   const directory=new URL("../supabase/migrations/",import.meta.url);
-  for(const name of (await readdir(directory)).filter((name)=>!name.includes("_queue_dispatch")).sort()){
+  for(const name of (await readdir(directory)).filter((name)=>!/_queue_dispatch|_worker_net_privacy/.test(name)).sort()){
     await db.exec(await readFile(new URL(name,directory),"utf8"));
   }
   await db.query("insert into auth.users values($1,now())",[actor]);
