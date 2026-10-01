@@ -20,6 +20,14 @@ export type DraftApprovalHistoryRow = {
   id: string; draft_id: string; workspace_id: string; actor_user_id: string;
   from_status: DraftStatus; to_status: DraftStatus; note: string | null; created_at: string;
 };
+export type Json = string | number | boolean | null | { [key:string]:Json|undefined } | Json[];
+export type AiGenerationRow = {id:string;workspace_id:string;actor_user_id:string;request_hash:string;topic:string;purpose:string;tone:string;
+  mode:"single"|"multiple"|"series";post_count:number;parameters:Json;model:string;status:"generating"|"completed"|"failed";
+  results:Json|null;error:string|null;created_at:string;completed_at:string|null};
+export type AiPostRow = {id:string;workspace_id:string;generation_id:string;position:number;label:string;angle:string;body:string;
+  draft_id:string|null;deleted_at:string|null;created_at:string;updated_at:string};
+export type ContentTemplateRow = {id:string;workspace_id:string;created_by:string;name:string;instruction:string;purpose:string;tone:string;
+  created_at:string;updated_at:string;deleted_at:string|null};
 type ProfileRow = { id: string; display_name: string | null; created_at: string };
 type WorkspaceRow = { id: string; name: string; created_by: string; created_at: string };
 type MemberRow = {
@@ -32,6 +40,10 @@ type MemberRow = {
 export type Database = {
   public: {
     Tables: {
+      ai_generation_jobs:{Row:AiGenerationRow;Insert:never;Update:{status?:string;error?:string;completed_at?:string};Relationships:[]};
+      ai_generated_posts:{Row:AiPostRow;Insert:never;Update:{body?:string;draft_id?:string;deleted_at?:string};Relationships:[]};
+      content_templates:{Row:ContentTemplateRow;Insert:{workspace_id:string;created_by:string;name:string;instruction:string;purpose:string;tone:string};
+        Update:{name?:string;instruction?:string;purpose?:string;tone?:string;deleted_at?:string};Relationships:[]};
       queue_worker_status: {
         Row: { workspace_id: string; last_run_at: string | null; status: string; detail: string | null };
         Insert: never; Update: never; Relationships: [];
@@ -118,6 +130,10 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      ai_server_credential:{Args:{p_workspace_id:string;p_server_secret:string};Returns:string|null};
+      reserve_ai_generation:{Args:{p_workspace_id:string;p_id:string;p_hash:string;p_parameters:Json;p_model:string};Returns:Json};
+      finish_ai_generation:{Args:{p_workspace_id:string;p_id:string;p_posts:Json};Returns:AiPostRow[]};
+      save_ai_posts:{Args:{p_workspace_id:string;p_posts:Json};Returns:DraftRow[]};
       save_product_post: {
         Args: { p_workspace_id: string; p_body: string; p_mode: string; p_draft_id?: string;
           p_expected_updated_at?: string; p_scheduled_at?: string | null; p_account_id?: string | null; p_allow_duplicate?: boolean };

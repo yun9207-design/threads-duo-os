@@ -1,5 +1,18 @@
 # TEST NOTES
 
+## 2026-10-02 — Threads AI P1
+
+새 AI 기능만 검사했다. 기존 Auth/A·B 로그인/기존 RLS 전체/이전 게시 기능 반복 검사는 수행하지 않았다.
+
+- `scripts/test-ai-content.mjs` 통과: 입력·개수·500자·복제 결과 제한, provider 계약/실패 표시, 요청 idempotence/한도, 10개 결과 저장/편집, KST 시간 배분, 원자적 전체 Queue 저장·잘못된 마지막 항목 rollback·동일 draft 재사용·충돌 거절·템플릿 저장/제외. 새 Vault 경계는 잘못된 capability와 브라우저 직접 조회 차단, 서버 읽기만 검사했다.
+- 실제 OpenAI `gpt-5.4-mini`로 서로 다른 글 10개 생성 성공. 이 실제 결과는 Supabase 생성 기록 `aef2d128-13a5-4d5c-b800-4740cf379708`에 보존했다. 사용자에게 다시 로그인하거나 비밀번호를 보내달라고 요청하지 않았다.
+- 실제 Supabase에서 생성 결과 하나 편집 → 10개 KST 일괄 예약 → linked draft 조회를 검사했다. Queue 10개/approved+auto_publish+scheduled_at 10개를 확인했다. 이 예약 검사는 ROLLBACK해 Production에 임시 자동 게시 글을 남기지 않았으며 실제 AI 원본 기록은 보존한다.
+- 실제 브라우저의 **격리 제품 미리보기**에서 실제 OpenAI로 10개 생성 → 본문 수정 저장 → 10월 3~4일 하루 5개(10/13/16/19/22시) 배분 → 전체 예약 → Queue 10개 → 페이지 새로고침 유지까지 확인했다. 이 브라우저 데이터는 로컬 PostgreSQL이며 실제 Production 사용자 세션으로 검사한 것으로 기록하지 않는다. [화면 증거](screenshots/p1-ai-queue-local.png).
+- Supabase P1 migration 2개와 Vault 서버 키 설정을 적용했다. 실제 DB에서 서버 capability를 포함한 조회 가능과 잘못된 capability 차단을 확인했다. 키 값은 응답/문서/Git에 출력하지 않았다.
+- 최종 lint/typecheck/production build와 서버 키 Git diff/브라우저 번들 포함 방지 검사 모두 통과했다. 기존 tracked MD 24개가 모두 존재하고 Auth·게시 엔진에 diff가 없다. MASTER_PLAN 원본/공개 사본 SHA256은 `3073AAAB4C243C773675DF4E123C8E3508E09CAF1BF9529EFFE67022DFA34DFF`로 동일하다. GitHub main push 후 Vercel Git 배포를 사용하며 Production 자동 smoke만 수행한다. Production 로그인 세션에서의 AI 전체 흐름을 새 수동 로그인 요청으로 반복하지 않는다.
+
+추가 사용량 metadata의 클라이언트 UPDATE 권한은 자동 승인 검토가 거부해 철회했다. 해당 migration은 적용하지 않았으며 P1은 요청한 생성 입력/모델/원본/시각/게시 연결 기록만 제공한다.
+
 ## 2026-10-02 — Threads Pro P0 제품화
 
 새 제품 화면과 실제 DB 저장/큐/실행기 연동을 구현했다. `node scripts/test-pro-product.mjs` PASS: 새 단일 저장/편집/중복 확인, 일괄 예약 atomic rollback, 수정/취소/안전한 실패 재예약, 즉시 게시 claim과 기존 엔진 결과 저장, due-only worker/중복 claim 방지, History 숨김·복구. 기존 Auth/A-B/동일 RLS/이전 기능 검사는 반복하지 않았다. Meta 실제 응답은 이 검사에 포함하지 않는다.

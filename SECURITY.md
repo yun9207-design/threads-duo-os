@@ -1,5 +1,16 @@
 # SECURITY
 
+## Threads AI P1 추가 경계
+
+- AI 라우트는 기존 서버 확인 사용자와 workspace 접근 검사를 재사용한다. GET/POST/PATCH는 실제 세션으로 Supabase에 연결하며 새 service-role 키·로그인 우회·공개 생성 endpoint를 만들지 않는다.
+- `OPENAI_API_KEY`는 서버 전용이다. 로컬 `.env.local`을 Git 제외하고 `.env.example`에는 빈 변수만 기록한다. 브라우저 bundle/props/응답에 키와 서버 capability를 전달하지 않는다.
+- Production은 암호화 Supabase Vault를 사용한다. 키 조회는 확인된 Auth 사용자 + DB 멤버십 + 기존 서버 capability가 모두 필요하다. Vault를 브라우저 역할에 공개하거나 직접 SELECT 권한을 추가하지 않는다. 키 회전은 Vault 관리자 화면/서버 환경변수에서 수행하며 코드·migration에 키 값을 넣지 않는다.
+- OpenAI 요청은 고정 HTTPS Responses endpoint로만 전송하고 redirect를 거절한다. prompt에는 키·쿠키·사용자 이메일을 넣지 않는다. `store:false`, 일반화한 오류, 명시적 시간 제한을 사용한다.
+- 실제 입력 주제·핵심 내용·독자는 생성 목적에 따라 OpenAI로 전송된다. 비공개 자료·개인정보를 입력하지 않도록 사용 안내에 설명한다.
+- 생성 요청을 DB에 먼저 예약해 재전송 중복 과금과 workspace 동시 생성을 제한한다. 실패 시 자동 유료 재시도를 하지 않는다. hourly/daily 글 개수를 제한하며 본문/요청/JSON 길이를 검증한다.
+- 기존 same-origin JSON 제한·본문 크기 제한·private/no-store 응답·workspace RLS·낙관적 버전 검사를 적용한다. 전체 예약은 원자적으로 처리하며 생성 원본을 보존한다.
+- 기존 Threads 토큰·게시 엔진·Auth/Workspace 정책은 변경하지 않는다. Meta 설정이 없는 상태에서 외부 게시를 실행하지 않는다.
+
 ## Threads Pro P0 추가 경계
 
 새 페이지는 기존 서버 인증/workspace 조회를 재사용한다. 사용자 작성 요청은 same-origin JSON과 기존 멤버 RLS/버전 잠금을 유지한다. 신규 일괄 등록만 최대 128KB, 30개, 각 500자로 제한하며 기존 단일 CRUD의 32KB 한도는 유지한다. 계정/workspace 복합 FK로 다른 게시 계정 연결을 거절한다. 중복 본문 검사는 workspace별 transaction lock 안에서 처리하며 사용자가 중복을 명시적으로 확인할 수 있다.

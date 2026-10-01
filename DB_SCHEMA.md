@@ -1,5 +1,21 @@
 # DB SCHEMA
 
+## Threads AI P1 추가 구조
+
+| 테이블 | 저장 내용 |
+| --- | --- |
+| `ai_generation_jobs` | 요청 UUID, workspace/작성자, 입력 hash, 주제·목적·말투·모드·개수·parameters·모델, 생성 상태·원본 결과·오류·생성/완료 시각 |
+| `ai_generated_posts` | 생성 작업/workspace, 순서·라벨·관점·500자 본문, 연결 draft, 수정 시각·목록 제외 시각 |
+| `content_templates` | workspace/작성자, 이름·작성 규칙·목적·말투, 생성/수정/목록 제외 시각 |
+
+세 테이블은 기존 `private.current_workspace_ids()`로 workspace 멤버 조회를 제한한다. 생성 작업은 해당 요청 작성자만 생성/완료하고, 같은 workspace 멤버는 결과/템플릿을 편집할 수 있다. anon 권한은 회수하고 ID·작성자·workspace 등 변경할 수 없는 컬럼에 클라이언트 UPDATE를 허용하지 않는다.
+
+`reserve_ai_generation`은 요청 중복/동시 생성/시간당·일일 개수를 제한한다. `finish_ai_generation`은 정확한 개수를 확인하고 결과와 완료 상태를 한 트랜잭션에 저장한다. `save_ai_posts`는 AI 결과 버전과 기존 draft 버전을 확인한 뒤 기존 `save_product_post`로 일괄 저장/예약한다. AI→draft와 AI→job은 workspace까지 포함한 외래키이며 재저장은 같은 draft를 사용한다.
+
+Production AI 키는 기존 Supabase Vault의 암호화 secret에 보관한다. `private.ai_server_credential`은 확인된 사용자·현재 멤버십·서버 전용 capability를 모두 확인하고 같은 workspace의 키 하나만 반환한다. 공개 wrapper는 invoker이며 anon/PUBLIC 실행 권한을 회수했다. 웹앱은 키를 서버 안에서만 사용한다. 실제 키 값은 migration에 없다.
+
+실제 적용 migration은 `20261001213222_ai_content_engine.sql`, `20261001222528_ai_server_vault.sql`이다. 기존 Auth/Workspace/게시 정책은 유지한다.
+
 ## Threads Pro P0 추가 구조
 
 `pro_product_p0`와 `pro_queue_requeue` migration을 실제 DB에 적용했다. drafts에 `auto_publish boolean`, `selected_threads_account_id uuid`, `history_hidden_at timestamptz`를 추가하고 선택 계정/workspace 복합 FK 및 due 부분 인덱스를 둔다. threads_accounts에는 `last_checked_at`, `token_status`를 추가한다. `queue_worker_status`는 workspace별 최근 실행 상태를 저장하며 멤버 SELECT만 허용한다. 원자적 단일/일괄 저장 RPC는 SECURITY INVOKER로 기존 drafts RLS를 따른다. 게시 결과가 불확실한 글은 계속 잠그며 안전하게 재시도 가능한 실패의 명시적 수정/재예약만 대기로 전환한다.

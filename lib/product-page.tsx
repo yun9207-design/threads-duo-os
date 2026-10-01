@@ -7,7 +7,7 @@ import { threadsConnection } from "@/lib/threads-publishing";
 import { queueWorkerStatus } from "@/lib/product-data";
 import { ProductApp, type ProductView } from "@/components/product-app";
 
-export async function ProductPage({view,draftId,copyId,initialSchedule}:{view:ProductView;draftId?:string;copyId?:string;initialSchedule?:boolean}){
+export async function ProductPage({view,draftId,copyId,initialSchedule,initialWritingTab,initialAiGeneration}:{view:ProductView;draftId?:string;copyId?:string;initialSchedule?:boolean;initialWritingTab?:"manual"|"ai"|"multiple";initialAiGeneration?:string}){
   const user=await getAuthenticatedUser();if(!user)redirect("/login");
   const load=async()=>{
     const workspace=await currentDraftWorkspace();
@@ -21,7 +21,7 @@ export async function ProductPage({view,draftId,copyId,initialSchedule}:{view:Pr
   if(!data)return <div className="pro-load-error"><h1>워크스페이스를 불러오지 못했습니다.</h1>
     <p>잠시 후 페이지를 다시 열어 주세요.</p><Link href="/">다시 불러오기</Link><a href="/MASTER_PLAN.html">마스터플랜</a></div>;
   const {workspace,drafts,connection,worker}=data;
-  return <ProductApp key={view+"/"+(draftId??copyId??"")} view={view} email={user.email??"사용자"}
+  return <ProductApp key={view+"/"+(draftId??copyId??"")+"/"+(initialWritingTab??"manual")+"/"+(initialAiGeneration??"")} view={view} email={user.email??"사용자"}
       workspace={workspace} initialDrafts={drafts} initialConnection={connection} worker={worker}
-      referenceTime={new Date().toISOString()} draftId={draftId} copyId={copyId} initialSchedule={initialSchedule}/>;
+      referenceTime={new Date().toISOString()} draftId={draftId} copyId={copyId} initialSchedule={initialSchedule} initialWritingTab={initialWritingTab} initialAiGeneration={initialAiGeneration}/>;
 }

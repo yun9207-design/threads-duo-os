@@ -5,9 +5,10 @@ import Link from "next/link";
 import { Icon,type IconName } from "@/components/icon";
 import { SessionControls } from "@/components/session-controls";
 import { DraftApprovalHistory } from "@/components/draft-approval-history";
+import { AiComposer } from "@/components/ai-composer";
 import type { DraftWorkspace } from "@/lib/drafts";
 import type { ThreadsConnection } from "@/lib/threads-publishing";
-import type { Database,DraftRow } from "@/lib/supabase/database.types";
+import type { AiPostRow,Database,DraftRow } from "@/lib/supabase/database.types";
 import { kstInput,kstInputToIso,scheduledDate } from "@/lib/draft-scheduling";
 
 export type ProductView="dashboard"|"composer"|"queue"|"history"|"accounts"|"bulk";
@@ -32,15 +33,17 @@ function Status({draft}:{draft:DraftRow}){const value=badge(draft);return <span 
 const time=(value:string|null)=>value?scheduledDate(value):"—";
 type BulkItem={id:string;body:string;date:string;time:string};
 
-export function ProductApp({view,email,workspace,initialDrafts,initialConnection,worker,referenceTime,draftId,copyId,initialSchedule=false}:{
+export function ProductApp({view,email,workspace,initialDrafts,initialConnection,worker,referenceTime,draftId,copyId,initialSchedule=false,initialWritingTab="manual",initialAiGeneration}:{
   view:ProductView;email:string;workspace:DraftWorkspace;initialDrafts:DraftRow[];initialConnection:ThreadsConnection;
-  worker:Worker;referenceTime:string;draftId?:string;copyId?:string;initialSchedule?:boolean;
+  worker:Worker;referenceTime:string;draftId?:string;copyId?:string;initialSchedule?:boolean;initialWritingTab?:"manual"|"ai"|"multiple";initialAiGeneration?:string;
 }){
   const [drafts,setDrafts]=useState(initialDrafts);
   const [connection,setConnection]=useState(initialConnection);
   const [workerState,setWorkerState]=useState(worker);
   const initial=initialDrafts.find((draft)=>draft.id===(draftId??copyId));
   const [editing,setEditing]=useState<DraftRow|null>(draftId?initial??null:null);
+  const [writingTab,setWritingTab]=useState(initialWritingTab);
+  const [aiSource,setAiSource]=useState<AiPostRow|null>(null);
   const [body,setBody]=useState(initial?.body??"");
   const [accountId,setAccountId]=useState(initial?.selected_threads_account_id??initialConnection.account?.id??"");
   const [date,setDate]=useState(initial?.scheduled_at?kstInput(initial.scheduled_at).slice(0,10):"");
@@ -118,9 +121,14 @@ export function ProductApp({view,email,workspace,initialDrafts,initialConnection
   }
   async function save(intent:"draft"|"now"|"schedule"){
     await action(async()=>{
-      const result=await request(base+"/posts","POST",{body,mode:intent,
+      const payload={body,mode:intent,
         ...(editing?{draftId:editing.id,expectedUpdatedAt:editing.updated_at}:{}),
-        scheduledAt:intent==="schedule"?kstInputToIso(date+"T"+clock):null,accountId:accountId||null,allowDuplicate});
+        scheduledAt:intent==="schedule"?kstInputToIso(date+"T"+clock):null,accountId:accountId||null,allowDuplicate};
+      let result;
+      if(aiSource){const response=await request(base+"/ai/posts","POST",{posts:[{id:aiSource.id,expectedUpdatedAt:aiSource.updated_at,
+        draftUpdatedAt:editing?.updated_at??null,body,mode:intent,scheduledAt:payload.scheduledAt,accountId:accountId||null,allowDuplicate}]});
+        setAiSource(response.posts[0]??aiSource);result={draft:response.draft??response.drafts[0]};}
+      else result=await request(base+"/posts","POST",payload);
       replaceDraft(result.draft);setEditing(result.draft);setBody(result.draft.body);
       setNotice(intent==="draft"?"임시저장했습니다. 나중에 이어서 작성할 수 있어요.":intent==="schedule"?"예약 큐에 등록했습니다. 지정 시간부터 자동 게시를 시도합니다.":"Threads에 게시했습니다.");
     });
@@ -203,7 +211,15 @@ export function ProductApp({view,email,workspace,initialDrafts,initialConnection
           {!history.length&&<div className="pro-empty"><Icon name="pen" size={28}/><h3>첫 게시가 여기에 기록됩니다.</h3><p>작성한 글을 게시하면 성공과 실패를 바로 확인할 수 있어요.</p><Link href="/composer">첫 글 작성 <Icon name="arrow" size={14}/></Link></div>}</section>
       </>}
 
-      {view==="composer"&&<div className="pro-composer-grid"><div>
+      {view==="composer"&&<div className="pro-writing-tabs" role="tablist" aria-label="글 작성 방식">{([["manual","직접 작성"],["ai","AI 작성"],["multiple","대량 생성"]] as const).map(([value,label])=>
+        <button key={value} role="tab" aria-selected={writingTab===value} disabled={busy} className={writingTab===value?"selected":""} onClick={()=>setWritingTab(value)}>{value!=="manual"&&<Icon name="sparkle" size={16}/>} {label}</button>)}</div>}
+      {view==="composer"&&writingTab!=="manual"&&<AiComposer key={writingTab} base={base} initialMode={writingTab==="multiple"?"multiple":"single"} initialGeneration={initialAiGeneration}
+        initialBody={body} accountId={accountId} accountLabel={accountLabel} canPublish={canPublish} drafts={drafts} referenceTime={now}
+        onBusy={setBusy} onSaved={(rows)=>setDrafts((items)=>[...rows,...items.filter((item)=>!rows.some((row)=>row.id===item.id))])}
+        onUse={(post)=>{const linked=drafts.find((draft)=>draft.id===post.draft_id)??null;setAiSource(post);setEditing(linked);
+          setBody(linked?.body??post.body);setWritingTab("manual");setAllowDuplicate(false);setNotice("AI 글을 Composer에 넣었습니다. 편집한 뒤 저장하거나 예약하세요.");
+          const at=linked?.scheduled_at?kstInput(linked.scheduled_at):"";setDate(at.slice(0,10));setClock(at.slice(11)||"09:00");setMode(at?"schedule":"now");}}/>}
+      {view==="composer"&&writingTab==="manual"&&<div className="pro-composer-grid"><div>
         <section className="pro-card"><div className="pro-card-title"><h2>{editing?"글 편집":"글 작성"}</h2>{editing&&<Status draft={editing}/>}</div>
           {(draftId&&!initial)&&<p className="pro-feedback error">이 글을 찾을 수 없습니다. 새 글로 작성할 수 있습니다.</p>}
           <label className="pro-label" htmlFor="post-account">게시 계정</label><select id="post-account" value={accountId} onChange={(event)=>setAccountId(event.target.value)} disabled={busy||locked}>
@@ -232,7 +248,7 @@ export function ProductApp({view,email,workspace,initialDrafts,initialConnection
           {deleteConfirmation===draft.id&&<button className="pro-draft-delete" onClick={()=>setDeleteConfirmation(null)}>유지</button>}</div>)}</section>}
       </div><aside><section className="pro-card pro-preview"><span className="pro-eyebrow">LIVE PREVIEW</span><h2>게시물 미리보기</h2><div className="pro-preview-profile"><span className="pro-account-avatar">@</span><div><strong>{account?.username??"your_account"}</strong><small>방금 전</small></div><b>···</b></div>
         <p className={"pro-preview-body "+(!body?"placeholder":"")}>{body||"작성한 글이 이곳에 미리 표시됩니다. 줄바꿈도 그대로 유지돼요."}</p><div className="pro-preview-icons">♡　☏　↻　↗</div></section>
-        <div className="pro-writing-tip"><Icon name="sparkle" size={18}/><h3>한 가지 이야기에 집중하세요.</h3><p>첫 문장은 짧게, 핵심은 분명하게.<br/>여러 이야기는 여러 글로 나눠보세요.</p><Link href="/bulk">여러 글 등록 <Icon name="arrow" size={14}/></Link></div></aside></div>}
+        <div className="pro-writing-tip"><Icon name="sparkle" size={18}/><h3>아이디어를 더 넓게 펼쳐보세요.</h3><p>주제 하나로 서로 다른 글을 만들고,<br/>선택한 이야기를 한 번에 예약하세요.</p><button disabled={busy} className="pro-text-link" onClick={()=>setWritingTab("ai")}>AI 작성 시작 <Icon name="arrow" size={14}/></button><Link href="/bulk">직접 여러 글 등록 <Icon name="arrow" size={14}/></Link></div></aside></div>}
 
       {view==="queue"&&<>
         <div className="pro-queue-summary"><span><b>{queue.length}</b>개 글이 큐에 있어요</span><span className={"pro-badge "+(canPublish&&workerFresh?"success":"warning")}>{canPublish?(workerFresh?"자동 게시 운영 중":"실행기 상태 확인 필요"):"계정 연결 후 자동 게시"}</span>
