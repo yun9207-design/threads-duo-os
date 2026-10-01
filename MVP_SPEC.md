@@ -1,16 +1,18 @@
 # MVP SPEC
 
+현재 추가 구현은 Drafts의 작성·조회·수정·soft delete와 draft/pending/approved 상태 저장이다. Dashboard의 글 목록·건수·승인 대기 카드가 실제 DB 조회를 사용하며 mock fallback은 없다. workspace 이름/역할은 기존 읽기 기반을 재사용한다. 기존 Auth/Session/Workspace/RLS와 MASTER_PLAN은 유지한다. 실제 Supabase 적용과 기존 세션의 브라우저 CRUD·새로고침 유지·관리자 복구·외부 workspace 차단 및 lint/type/build를 통과해 Draft CRUD를 완료 처리했다. 최신 상태는 `docs/DRAFTS.md`를 기준으로 한다. 승인 이력·Threads·AI·예약·게시·Analytics·결제는 이번 범위가 아니다.
+
 ## P0
 - [x] 이메일 로그인 (Auth 1단계 로컬·Production 검증 완료)
-- [x] 2명 workspace (profiles/멤버십/RLS·조회 API 기반, 화면은 mock)
+- [x] 2명 workspace (profiles/멤버십/RLS·조회 API, Dashboard 실제 이름/역할)
 - [ ] Threads account placeholder
-- [x] Today dashboard (mock 첫 화면)
-- [ ] Draft CRUD
+- [x] Today dashboard (실제 Drafts 목록·건수·편집)
+- [x] Draft CRUD (실제 Supabase·soft delete)
 - [ ] AI draft mock
-- [ ] approval status: draft/review/approved
+- [x] approval status: draft/pending/approved (상태 저장만, 승인 이력 없음)
 - [ ] schedule datetime
 - [ ] queue list
-- [ ] Supabase persistence
+- [x] Supabase persistence (Drafts 범위)
 - [x] mobile layout (Today mock 화면)
 
 ## P1

@@ -1,5 +1,11 @@
 # SECURITY
 
+## Drafts 추가 경계
+
+기존 Auth/Session/Workspace 정책은 동결한다. Drafts만 workspace 멤버 SELECT/UPDATE, 본인 작성 INSERT를 허용한다. 열 권한과 identity trigger로 workspace/작성자/ID/작성일 변경을 막는다. 작성자 ID는 서버 검증 사용자로 결정하며 API 입력의 identity/추가 필드는 거절한다. 익명과 다른 workspace는 DB RLS에서도 차단한다. 저장 상태값 approved는 외부 게시 권한을 부여하지 않는다.
+
+API mutation은 같은 Origin/Host의 JSON(32KB 이하)을 요구하고, 수정/삭제는 expectedUpdatedAt 조건으로 동시 편집 덮어쓰기를 거절한다. 모든 글 응답은 private/no-store이며 React에서 주제·본문을 텍스트로 렌더링한다. 삭제는 deleted_at을 기록하며 삭제 행도 같은 workspace 멤버에게는 Data API 조회 가능하다. 관리자 복구 외 물리 DELETE/UI 복구 기능은 제공하지 않는다. 새 키나 service-role/secret을 추가하지 않는다. 상세 스키마/적용 상태는 `docs/DRAFTS.md`에 있다.
+
 1. Meta App Secret와 Threads access token은 서버에서만 처리.
 2. .env.local은 gitignore.
 3. 브라우저 localStorage에 access token 장기 저장 금지.

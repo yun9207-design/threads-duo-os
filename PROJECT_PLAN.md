@@ -1,5 +1,7 @@
 # PROJECT PLAN — Threads Duo OS
 
+현재 완료 범위는 Drafts 실제 DB CRUD다. Auth/Session/Workspace/기존 RLS는 동결하며 추가 A/B 로그인이나 동일 권한 검사를 반복하지 않았다. 기반 main/Vercel 배포(`9dd7e70`) 이후 글의 작성·목록·수정·soft delete와 draft/pending/approved 상태 저장을 구현했다. 실제 Supabase 적용, 기존 세션의 브라우저 CRUD·새로고침 유지·복구·외부 workspace 차단과 lint/type/build 검사를 통과했다. 테스트 글 한 개는 복구 확인 후 다시 soft delete했다. 상세 적용 상태는 `docs/DRAFTS.md`를 따른다. Threads·AI·예약·게시·성과·결제는 이번 범위에 없다.
+
 ## Product thesis
 두 사람이 여러 Threads 계정을 관리하면서 AI 생성, 승인, 예약, 성과분석을 하나의 운영화면에서 처리한다.
 

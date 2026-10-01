@@ -1,5 +1,13 @@
 # DB SCHEMA
 
+## 현재 Drafts 추가 스키마 (migration 002)
+
+2026-10-01 실제 `threads-duo-os` Supabase 프로젝트에 적용 완료. 파일은 `202610010002_drafts_crud.sql`이며 MCP가 생성한 원격 migration 이력은 `20261001090952 / drafts_crud`다. 기존 migration 001은 이전 단계의 관리자 적용 상태를 유지한다. 이 파일을 원격에 다시 적용하지 않는다. 향후 CLI 도입 시 기존 수동 적용 baseline 및 원격 이력과 로컬 파일 버전을 먼저 정합화해야 한다.
+
+기존 profiles/workspaces/workspace_members와 정책은 변경하지 않는다. 새 `drafts`는 `id` UUID PK, `workspace_id` workspaces FK, `author_profile_id` profiles FK, `topic`(1–200자), `body`(최대 5,000자), `status` draft/pending/approved, `created_at`/`updated_at` timestamptz, nullable `deleted_at`을 가진다. 작성자·workspace·ID·작성일은 불변이다. workspace/작성일 활성 행 인덱스와 작성자 인덱스를 추가했다.
+
+멤버 SELECT/UPDATE와 본인 작성 INSERT만 허용하는 RLS·열 권한, DB 수정 시각 trigger를 사용한다. 삭제는 복구 가능한 soft delete이며 authenticated 물리 DELETE를 허용하지 않는다. Threads FK·media·AI·승인 이력·예약/게시 열은 추가하지 않는다. 적용 SQL과 현재 검증/연결 상태는 `docs/DRAFTS.md`에 있다. 아래 최초 기획 및 이전 단계 기록은 보존한다.
+
 workspaces(id, name, created_at)
 profiles(id, user_id, workspace_id, display_name, role)
 threads_accounts(id, workspace_id, owner_profile_id, threads_user_id, username, token_status, created_at)

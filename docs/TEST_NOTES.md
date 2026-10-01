@@ -1,5 +1,42 @@
 # TEST NOTES
 
+## 2026-10-01 — Drafts 실제 Supabase 적용 / CRUD 완료
+
+Supabase 연결 후 준비된 migration 002를 실제 프로젝트 `qemmkooyjmqaduofoquf`에 적용했다. 원격 이력: `20261001090952 / drafts_crud`. 기존 세 테이블과 멤버십은 그대로이며 새 테이블의 3개 RLS 정책/열 권한을 확인했다. 앱은 기존 publishable 키와 로그인 쿠키를 사용하고 관리자 연결은 migration 및 해당 테스트 행 확인/복구에만 사용했다.
+
+| 실제 검사 | 결과 |
+| --- | --- |
+| 기존 세션에서 새 글 1개 작성 | POST 201, 목록 GET 200; SQL에서 동일 id/workspace/작성자와 draft 저장 확인 |
+| 본문 수정 / 상태 변경 | UI 저장으로 pending → approved; SQL의 수정 본문·상태·updated_at과 일치 |
+| 새로고침 | 로그인된 Dashboard의 목록·수정 본문·approved 1건 유지 |
+| 삭제 | DELETE 200, 목록 0건; 원문/상태를 보존하고 deleted_at 기록 |
+| 복구 | 해당 id에만 관리자 UPDATE로 deleted_at=null; 목록 새로고침 후 동일 글 재등장 |
+| 테스트 정리 | 같은 글을 UI에서 다시 soft delete; 활성 글 0건, 보존된 테스트 행 1개 |
+| 다른 workspace API | 기존 A 세션에서 B 전용 workspace의 Drafts GET 404; 내용 비노출 |
+| 새 Drafts RLS | 실제 DB authenticated/A claims에서 외부 SELECT 숨김 및 INSERT 거절; 검사 transaction rollback |
+| 최종 품질 | lint / typecheck / production build PASS; `/`·Drafts API는 동적 경로 |
+| 보존 | 기존 Auth/Session/workspace 파일·정책 수정 없음; MASTER_PLAN 원본/사본 hash 동일, 모든 기존 MD 유지, 실제 env Git 제외 |
+
+새로운 로그인·A/B 반복 로그인·기존 RLS 50개 재검증은 수행하지 않았다. 다른 workspace API 검사는 임시 로컬 검사 페이지의 정상 fetch로 수행했고 해당 파일은 삭제해 배포에서 제외했다. 실제 작업 화면: [새로고침 후 수정 본문·approved 상태](screenshots/drafts-live-approved.jpg). 테스트 글 ID는 `b9581d63-1aa9-413f-a407-aeab8f3e65a4`이며 사용자 콘텐츠를 삭제하지 않았다.
+
+Supabase security advisor에 새 Drafts RLS 경고는 없었다. 기존 Auth의 [유출 비밀번호 보호 비활성 경고](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection)는 동결 범위여서 설정을 변경하지 않았다. Performance advisor의 [미사용 인덱스 정보](https://supabase.com/docs/guides/database/database-linter?lint=0005_unused_index)는 신규 drafts_author_idx 및 기존 workspace 작성자 인덱스이며 FK 조회용으로 유지한다.
+
+검증된 변경은 GitHub main에 push하여 기존 Vercel Git 연동으로 배포한다. 해당 commit의 Vercel status와 Production HTTP smoke 결과는 최종 실행 보고에서 확인한다. 다음 기록은 도구 연결 전의 개발 이력이며 현재 적용 상태와 구분한다.
+
+### 이전 연결 대기 단계 기록
+
+사용자가 Supabase 연결 완료를 알리고 실제 migration/CRUD/배포를 요청했다. 현재 이 채팅의 실행 가능한 도구 목록에는 Supabase SQL/migration 도구가 없으며 로컬 MCP 목록에도 Supabase 서버가 노출되지 않았다. 내장 브라우저의 프로젝트 SQL Editor는 관리자 sign-in 화면으로 이동했고, 기존 Chrome의 관리자 세션 연결은 응답하지 않았다. 실제 비밀번호/쿠키/토큰을 추출하거나 새 로그인·기존 Auth/RLS 검사를 요청하지 않았다.
+
+공개 설정으로 Drafts Data API의 테이블 가용성만 조회한 결과 HTTP 404/PGRST205(스키마 캐시에서 drafts를 찾지 못함)였다. 민감한 값은 출력하지 않았다. 실제 SQL 적용/새 글 생성/CRUD 검사는 실행하지 못했으며 commit/main push/새 Production 배포도 하지 않았다. 기존 기반 배포와 Auth/workspace/MASTER_PLAN/기존 MD를 보존했다. 관리자 SQL 도구가 이 작업에서 호출 가능해지는 것이 남은 의존성이다.
+
+기반 main/Vercel 배포(`9dd7e70`)를 유지하고 Auth·Session·Workspace·기존 RLS를 동결했다. 기존 RLS 50개 및 A/B 로그인 검사는 반복하지 않았다. 새 migration 002/typed DAL/CRUD API/입력 검증과 Dashboard의 실제 목록·편집·상태·soft delete를 구현했다. 실제 연결이 실패하면 오류를 표시하며 mock fallback이 없다.
+
+- `node scripts/test-drafts.mjs`: PASS. 새 Drafts migration과 실제 PostgreSQL 권한을 디스크 DB에서 실행했다. owner 작성·조회 → member 본문 수정 및 pending/approved 저장 → 오래된 version 덮어쓰기 거절 → DB close/reopen 후 수정 내용 유지 → soft delete/활성 목록 제외를 확인했다. 외부 workspace read/update/delete/insert, 작성자 위조, identity 변경, invalid status/길이, anon 조회·쓰기와 물리 DELETE 차단도 통과했다. 관리자용 새 Drafts SQL smoke 템플릿도 이 DB에서 통과했다. 실제 Supabase 검사와 구분한다.
+- `node scripts/smoke-drafts-http.mjs`: 새 API에서 익명 읽기/쓰기 401, 다른 Origin 403, identity/invalid status/missing version 입력 400, 32KB 초과 413, private/no-store 및 내부 오류 비노출을 확인했다. 로그인 요청은 하지 않았다. 최초 localhost/127.0.0.1 내부 URL 차이로 정상 Origin도 거절되는 문제가 있었으며 새 Drafts HTTP helper에서 incoming Host를 기준으로 비교해 수정했다.
+- `npm run lint`, `npm run typecheck`: PASS. `npm run build`: sandbox의 worker spawn EPERM 후 허용된 일반 실행으로 PASS. 기존 Auth 파일·workspace DAL/API·migration 001은 수정하지 않았다.
+- MASTER_PLAN 원본/정적 사본 SHA256이 모두 `3073aaab4c243c773675df4e123c8e3508e09caf1bf9529effe67022dfa34dff`로 동일하다. 기존 MD 삭제는 없다. `.env.local`·테스트 디스크 DB는 Git 제외 상태이며 공개 변수/키 구조도 변경하지 않았다.
+- 기존 로컬 로그인 세션에서 새 Dashboard가 사용자 이메일·Duo workspace owner를 유지하며 실제 DB 연결 실패 메시지를 표시했다. 추가 로그인 없이 이 세션에서 CRUD를 자동 검사할 수 있다. 관리자 세션/SQL connector가 연결되지 않아 실제 Supabase migration 002는 아직 적용하지 않았다. 실제 저장·화면 CRUD 완료로 기록하지 않으며 Drafts push/배포도 보류한다. 연결 후 새 테이블 적용·실제 CRUD 증거를 이 절에 추가한다.
+
 - [x] MASTER_PLAN 탭 동작
 - [x] 모바일 레이아웃
 - [ ] P0 smoke test

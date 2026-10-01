@@ -1557,3 +1557,35 @@ main {
     font-size: 23px;
   }
 }
+
+/* Persisted drafts use the existing Dashboard shell and typography. */
+.drafts-feedback { margin-bottom: 16px; }
+.drafts-feedback:empty { display: none; }
+.day-toolbar > span { font-size: 11px; color: #8a909d; }
+.draft-row { width: 100%; background: white; text-align: left; border-top: 0; border-left: 0; border-right: 0; color: inherit; }
+.draft-row:hover, .draft-row.selected { background: #fff8f4; }
+.draft-row:focus-visible { outline: 2px solid #eb764d; outline-offset: -2px; }
+.draft-body-preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.post-status.draft { color: #9b8466; background: #fbf4e9; }
+.post-status.pending { color: #9a82bb; background: #f6f1fc; }
+.draft-editor fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.draft-editor label { display: block; font-size: 11px; font-weight: 600; margin: 16px 0 8px; }
+.draft-editor input, .draft-editor textarea, .draft-editor select { display: block; width: 100%; min-width: 0; border: 1px solid #e2e6ed; background: #fcfcfd; border-radius: 7px; padding: 11px 12px; font: inherit; font-size: 12px; color: #515b6b; }
+.draft-editor textarea { resize: vertical; line-height: 1.8; }
+.draft-editor input:focus, .draft-editor textarea:focus, .draft-editor select:focus { outline: 2px solid #efb09b; outline-offset: 1px; }
+.draft-editor-meta { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.draft-editor-meta > span { color: #9198a4; font-size: 10px; }
+.draft-editor-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 20px; }
+.draft-secondary { border: 1px solid #e2e6ed; background: white; border-radius: 6px; padding: 10px; font: inherit; font-size: 11px; }
+.draft-delete { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 20px; font-size: 11px; }
+.draft-delete button { background: none; border: 0; padding: 5px 0; color: #ba685b; font: inherit; }
+.draft-editor fieldset:disabled, .draft-row:disabled { opacity: 0.65; }
+.drafts-pending-panel { margin-top: 23px; }
+.drafts-pending-panel .review-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.drafts-pending-panel .review-list > p { grid-column: 1 / -1; }
+.drafts-pending-panel .review-card h3, .drafts-pending-panel .review-card p { overflow-wrap: anywhere; }
+.drafts-pending-panel .approve-button { text-decoration: none; }
+.dashboard-footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; margin: 30px 0; font-size: 9px; color: #9ba1ac; }
+.dashboard-footer a { display: flex; align-items: center; gap: 6px; }
+@media (max-width: 1100px) { .drafts-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 780px) { .drafts-pending-panel .review-list { grid-template-columns: minmax(0, 1fr); } }
