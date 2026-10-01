@@ -7,12 +7,12 @@ import { kstInput,kstInputToIso,scheduledDate } from "@/lib/draft-scheduling";
 import type { AiGenerationRow,AiPostRow,ContentTemplateRow,DraftRow } from "@/lib/supabase/database.types";
 
 type Result=AiPostRow&{selected:boolean;date:string;time:string};
-type Props={base:string;initialMode?:AiMode;initialGeneration?:string;initialBody:string;accountId:string;accountLabel:string;canPublish:boolean;drafts:DraftRow[];
+type Props={base:string;initialMode?:AiMode;initialGeneration?:string;initialBody:string;accountId:string;accountLabel:string;canPublish:boolean;drafts:DraftRow[];categoryId?:string;
   referenceTime:string;onUse:(post:AiPostRow)=>void;onSaved:(drafts:DraftRow[])=>void;onBusy:(value:boolean)=>void};
 const asResult=(post:AiPostRow,drafts:DraftRow[]):Result=>{const draft=drafts.find((row)=>row.id===post.draft_id);
   const at=draft?.scheduled_at?kstInput(draft.scheduled_at):"";return {...post,body:draft?.body??post.body,selected:!post.draft_id,date:at.slice(0,10),time:at.slice(11)||"10:00"};};
 
-export function AiComposer({base,initialMode="single",initialGeneration,initialBody,accountId,accountLabel,canPublish,drafts,referenceTime,onUse,onSaved,onBusy}:Props){
+export function AiComposer({base,initialMode="single",initialGeneration,initialBody,accountId,accountLabel,canPublish,drafts,referenceTime,onUse,onSaved,onBusy,categoryId}:Props){
   const [topic,setTopic]=useState(initialBody.split("\n")[0].slice(0,180));
   const [keyPoints,setKeyPoints]=useState("");const [audience,setAudience]=useState("");
   const [purpose,setPurpose]=useState<string>(AI_PURPOSES[0]),[tone,setTone]=useState<string>(AI_TONES[0]);
@@ -26,7 +26,8 @@ export function AiComposer({base,initialMode="single",initialGeneration,initialB
   const [templateName,setTemplateName]=useState(""),[templateInstruction,setTemplateInstruction]=useState("");
   const today=kstInput(referenceTime).slice(0,10),selected=results.filter((post)=>post.selected);
   const allTemplates=[...BUILTIN_TEMPLATES,...templates];
-  const counts=generationMode==="single"?[1]:generationMode==="series"?[3,5,7,10,15,30]:[1,3,5,10,20,30];
+  const allowedCounts=generationMode==="single"?[1]:generationMode==="series"?[3,5,7,10,15,30]:[1,3,5,10,20,30];
+  const counts=generationMode==="multiple"&&!allowedCounts.includes(count)?[...allowedCounts,count].sort((a,b)=>a-b):allowedCounts;
 
   async function request(path:string,method="GET",payload?:unknown){
     const response=await fetch(path,{method,cache:"no-store",credentials:"same-origin",
@@ -90,7 +91,7 @@ export function AiComposer({base,initialMode="single",initialGeneration,initialB
     await action(async()=>{
       const data=await request(base+"/ai/posts","POST",{posts:items.map((item)=>({id:item.id,expectedUpdatedAt:item.updated_at,
         draftUpdatedAt:drafts.find((draft)=>draft.id===item.draft_id)?.updated_at??null,body:item.body,mode:intent,
-        scheduledAt:intent==="schedule"?kstInputToIso(item.date+"T"+item.time):null,accountId:accountId||null,allowDuplicate}))});
+        scheduledAt:intent==="schedule"?kstInputToIso(item.date+"T"+item.time):null,accountId:accountId||null,categoryId:categoryId||null,allowDuplicate}))});
       const saved=data.draft?[data.draft]:data.drafts;onSaved(saved);
       const updated=new Map<string,AiPostRow>(data.posts.map((item:AiPostRow)=>[item.id,item]));
       setResults((rows)=>rows.map((item)=>updated.has(item.id)?{...item,...updated.get(item.id)!,selected:false}:item));

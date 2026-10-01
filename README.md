@@ -1,5 +1,7 @@
 # Threads Duo OS
 
+현재 제품은 **Threads 자동운영 P2**까지 구현했다. `/planner` 주간 AI 계획·실제 글 생성·콘텐츠 믹스·검토 후 전체 배치, `/calendar` 월간/주간·드래그 예약 이동, `/recurring` 요일/시간/템플릿별 반복 슬롯, `/categories` 공통 분류, `/analytics` 실제 내부 집계와 Dashboard 주간 운영을 제공한다. [사용 흐름과 DB](docs/CONTENT_OPERATIONS.md)를 참고한다. 기존 기능과 아래 개발 이력은 보존한다.
+
 최신 추가 기능은 **Threads 전용 AI 콘텐츠 엔진 P1**이다. Composer의 직접 작성/AI 작성/대량 생성 탭에서 주제·핵심 내용·독자·목적·말투를 입력하고, 단일 글·최대 30개 버전·Day별 시리즈를 실제 OpenAI로 생성한다. 결과 편집·AI 다듬기·템플릿 저장·KST 자동 시간 배분·선택 글 전체 예약을 기존 Queue와 연결했다. 생성 기록과 원본 결과는 Supabase에 저장하고 고유 링크로 다시 연다. Meta 토큰 없이 생성·저장·예약을 사용할 수 있다. [AI 사용·서버 설정](docs/AI_CONTENT.md)을 참고한다. 아래 P0와 이전 단계 기록은 보존한다.
 
 현재 제품 화면은 **Threads Pro P0**다. `/` 운영 Dashboard, `/composer` 작성·미리보기·임시저장·즉시 게시·예약, `/queue` 예약 수정·취소·실행 상태, `/history` 결과·재시도·복사·숨김, `/accounts` 연결 상태, `/bulk` 최대 30개 글의 일괄 저장·예약을 제공한다. 모든 글과 수치는 Supabase 데이터를 사용한다. 기존 게시 엔진·Auth·workspace를 재사용하며 Meta 토큰이 없으면 작성/예약을 보존하고 실제 게시를 막는다. 자동 실행기와 운영 방법은 [제품 사용 안내](docs/PRO_PRODUCT.md)를 따른다. 아래 내용은 이전 단계 기록으로 보존한다.

@@ -10,7 +10,7 @@ import { AiProviderError,aiModel,generateThreadsContent } from "./ai-provider";
 import type { AiGenerationRow,Json } from "./supabase/database.types";
 
 export async function aiClient(workspaceId:string){await readWorkspace(workspaceId);const client=await createClient();if(!client)throw new DraftAccessError(503);return client;}
-async function aiCredential(workspaceId:string,client:Awaited<ReturnType<typeof aiClient>>){
+export async function aiCredential(workspaceId:string,client:Awaited<ReturnType<typeof aiClient>>){
   const localKey=process.env.OPENAI_API_KEY?.trim();if(localKey)return localKey;
   const capability=process.env.THREADS_PUBLISHING_SECRET?.trim();
   if(!capability||process.env.THREADS_WORKSPACE_ID!==workspaceId)return null;
@@ -53,9 +53,9 @@ export async function aiOverview(workspaceId:string){
   const outcomes=ids.length?await client.from("drafts").select("id,publication_status").eq("workspace_id",workspaceId).in("id",ids):{data:[],error:null};
   if(outcomes.error)aiDbError(outcomes.error.code);
   const published=new Set(outcomes.data!.filter((draft)=>draft.publication_status==="published").map((draft)=>draft.id));
-  return {configured:!!await aiCredential(workspaceId,client),jobs:jobs.data!.map((job)=>({...job,published_count:posts.data!.filter((post)=>post.generation_id===job.id&&post.draft_id&&published.has(post.draft_id)).length})),templates:templates.data!};
+  return {configured:!!await aiCredential(workspaceId,client),jobs:jobs.data!.filter(job=>(job.parameters as Record<string,unknown>)?.operationKind!=="planner").map((job)=>({...job,published_count:posts.data!.filter((post)=>post.generation_id===job.id&&post.draft_id&&published.has(post.draft_id)).length})),templates:templates.data!};
 }
-export async function generateAi(workspaceId:string,value:unknown){
+export async function generateAi(workspaceId:string,value:unknown,operationInstruction=""){
   const input=parseAiInput(value),client=await aiClient(workspaceId);
   const credential=await aiCredential(workspaceId,client);
   if(!credential)throw new AiProviderError("AI 연결 설정이 필요합니다. 관리자에게 서버 API 키 설정을 요청해 주세요.",503);
@@ -68,16 +68,17 @@ export async function generateAi(workspaceId:string,value:unknown){
   if(input.sourcePostId){const source=await client.from("ai_generated_posts").select("id").eq("workspace_id",workspaceId).eq("id",input.sourcePostId).is("deleted_at",null).maybeSingle();
     if(!source.data)throw new DraftInputError("다듬을 글을 찾을 수 없습니다.");}
   const {requestId,...parameters}=input;
-  const hash=createHash("sha256").update(JSON.stringify(parameters)).digest("hex");
+  instruction+="\n"+operationInstruction;
+  const hash=createHash("sha256").update(JSON.stringify({...parameters,operationInstruction})).digest("hex");
   const reservation=await client.rpc("reserve_ai_generation",{p_workspace_id:workspaceId,p_id:requestId,p_hash:hash,
-    p_parameters:parameters as Json,p_model:aiModel()});if(reservation.error)aiDbError(reservation.error.code);
+    p_parameters:{...parameters,...(operationInstruction?{operationKind:operationInstruction.startsWith("주간 콘텐츠 기획")?"planner":"planner_posts"}:{})} as Json,p_model:aiModel()});if(reservation.error)aiDbError(reservation.error.code);
   const reserved=reservation.data as {claimed:boolean;job:AiGenerationRow};
   if(!reserved.claimed){
     if(reserved.job.status==="completed")return {job:reserved.job,posts:await listAiPosts(workspaceId,requestId)};
     throw new AiProviderError(reserved.job.status==="failed"?"이 생성 요청은 종료됐습니다. 다시 생성 버튼으로 시작해 주세요.":"이미 생성 중입니다. 잠시 후 생성 기록에서 확인해 주세요.",409);
   }
   try{
-    const posts=await generateThreadsContent(input,instruction,credential);
+    const posts=await generateThreadsContent(input,instruction,credential,operationInstruction.startsWith("주간 콘텐츠 기획"),operationInstruction);
     const finished=await client.rpc("finish_ai_generation",{p_workspace_id:workspaceId,p_id:requestId,p_posts:posts as Json});
     if(finished.error)aiDbError(finished.error.code);
     return {job:{...reserved.job,status:"completed" as const,results:posts,completed_at:new Date().toISOString()},posts:finished.data!};
@@ -111,7 +112,7 @@ export async function promoteAiPosts(workspaceId:string,value:unknown){
     return {id,expectedUpdatedAt:parseDeleteInput({expectedUpdatedAt}),draftUpdatedAt:draftUpdatedAt?parseDeleteInput({expectedUpdatedAt:draftUpdatedAt}):null,...parsed};
   });
   if(new Set(posts.map((item)=>item.id)).size!==posts.length||posts.some((item)=>item.mode==="now")&&posts.length!==1)throw new DraftInputError("즉시 게시는 글 하나만 선택해 주세요.");
-  const client=await aiClient(workspaceId),result=await client.rpc("save_ai_posts",{p_workspace_id:workspaceId,p_posts:posts as Json});
+  const client=await aiClient(workspaceId),result=await client.rpc("save_categorized_posts",{p_workspace_id:workspaceId,p_posts:posts as Json,p_ai:true});
   if(result.error)aiDbError(result.error.code);return {drafts:result.data!,immediate:posts[0].mode==="now"};
 }
 

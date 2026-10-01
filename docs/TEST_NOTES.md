@@ -1,5 +1,20 @@
 # TEST NOTES
 
+## 2026-10-02 — Threads 자동운영 P2
+
+기존 Auth/A·B 로그인/기존 RLS/게시 엔진 반복 검사를 하지 않고 새 운영 기능만 확인했다.
+
+- 로컬 Postgres + 실제 서버 함수 자동검사: 14개 콘텐츠 믹스 배분, 반복 슬롯 계산, AI 결과 연결, 잘못된 마지막 카테고리의 전체 rollback, 실제 API 입력 → 14개 원자적 Calendar/Queue 저장, 동일 계획 재배치 거절, 예약 날짜/카테고리 변경, 재조회 유지, 주간 목표/부족 집계, 목표가 찬 빈 슬롯 요청의 AI 호출 생략.
+- 실제 OpenAI로 14개 주간 주제와 최종 글 14개를 생성했다. 최종 글에서 본문 편집 → 자동 시간 배분 → 반복 슬롯 등록 → 검토 후 Calendar/Queue 전체 저장을 실제 브라우저에서 확인했다. Queue 14개를 새로고침해 유지되는 것을 확인했다.
+- 실제 브라우저에서 Calendar 월간/주간, 카테고리 필터(정보 4개), 반복 슬롯 표시, 사용자 카테고리 추가·수정·숨김, 내부 Analytics 빈 데이터/연결 대기 표시를 확인했다. 드래그 핸들러와 예약 변경 DB 연결을 구현했으나 내장 브라우저의 좌표 드래그는 상태 변화가 없어 성공으로 기록하지 않는다.
+- 브라우저 검사는 **격리된 로컬 PostgreSQL 미리보기**다. 실제 Production 사용자 세션 검사를 수행한 것으로 기록하지 않는다. [14개 실제 AI 글 Calendar 화면](screenshots/p2-calendar-local.png).
+- 실제 Supabase에 P2 migrations를 적용하고 실제 AI 14개 결과 → approved/auto_publish/카테고리 포함 Calendar+Queue 배치를 확인했다(`real_ai_14_calendar_queue_verified`). 검증 transaction을 ROLLBACK해 임시 자동 게시 글을 Production에 남기지 않았다.
+- 화면에서 확인한 두 문제를 수정했다: 기획 개요에 최종 게시물 후킹 검사를 적용하던 문제(계획용 규칙 분리), 계획 배치의 AI 수정 버전 값이 일반 입력 파싱 결과로 덮어써지는 문제(실제 서버 함수 자동검사로 방지).
+- 실제 Threads 게시와 외부 Insights 수집은 Meta 토큰 연결 전이라 실행하지 않았다. 내부 수치는 DB에서만 집계하고 외부 지표는 연결 대기로 표시한다.
+- 최종 lint/typecheck/production build와 P2 실제 서버 함수 검사가 통과했다. 기존 MASTER_PLAN 원본/공개 사본과 모든 기존 MD가 보존됐고 `.env.local`은 Git에서 제외된다. 커밋 후보에 서버 비밀 값이 없는 것을 확인했다. GitHub main push와 Vercel 배포 후 새 기능의 자동 Production smoke를 수행한다.
+
+
+
 ## 2026-10-02 — Threads AI P1
 
 새 AI 기능만 검사했다. 기존 Auth/A·B 로그인/기존 RLS 전체/이전 게시 기능 반복 검사는 수행하지 않았다.

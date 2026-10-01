@@ -1,5 +1,9 @@
 # DB SCHEMA
 
+## 자동운영 P2 추가 구조
+
+`content_categories`와 `drafts.category_id` 복합 FK, JSON 계획 항목을 가진 `content_plans`, 규칙인 `recurring_schedules`와 실제 글 연결인 `recurring_occurrences`, nullable Meta 지표를 위한 `draft_insights`를 추가했다. membership RLS/컬럼별 최소 권한을 적용하며 기존 테이블과 데이터를 보존한다. 기존 저장 함수를 감싼 `save_categorized_posts`, 원자적 `place_content_plan`을 사용한다. 상세: `docs/CONTENT_OPERATIONS.md`.
+
 ## Threads AI P1 추가 구조
 
 | 테이블 | 저장 내용 |

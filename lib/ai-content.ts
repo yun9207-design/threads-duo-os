@@ -36,7 +36,7 @@ export function parseAiInput(value:unknown):AiInput {
   if(typeof input.requestId!=="string"||!isUuid(input.requestId))throw new DraftInputError("생성 요청을 다시 시작해 주세요.");
   const mode=input.mode as AiMode,action=input.action as AiAction,count=input.count as number;
   if(!["single","multiple","series"].includes(mode)||!Object.hasOwn(AI_ACTIONS,action)
-    ||!(mode==="single"?[1]:mode==="series"?[3,5,7,10,15,30]:[1,3,5,10,20,30]).includes(count)
+    ||!(mode==="single"?count===1:mode==="series"?[3,5,7,10,15,30].includes(count):Number.isInteger(count)&&count>=1&&count<=30)
     ||!AI_PURPOSES.includes(input.purpose as typeof AI_PURPOSES[number])||!AI_TONES.includes(input.tone as typeof AI_TONES[number]))throw new DraftInputError("개수·목적·말투를 선택해 주세요.");
   const sourceBody=text("sourceBody",500);
   if(!["generate","regenerate"].includes(action)&&(!sourceBody||count!==1))throw new DraftInputError("다듬을 글 하나를 선택해 주세요.");
@@ -47,7 +47,7 @@ export function parseAiInput(value:unknown):AiInput {
 }
 
 export type GeneratedContent={label:string;angle:string;body:string};
-export function validateGeneratedContent(value:unknown,count:number):GeneratedContent[]{
+export function validateGeneratedContent(value:unknown,count:number,planning=false):GeneratedContent[]{
   if(!value||typeof value!=="object"||!("posts" in value)||!Array.isArray(value.posts)||value.posts.length!==count)throw new DraftInputError("AI 응답이 완성되지 않았습니다. 다시 생성해 주세요.");
   const contents:GeneratedContent[]=value.posts.map((item:unknown)=>{
     if(!item||typeof item!=="object")throw new DraftInputError("AI 응답 형식을 확인하지 못했습니다.");
@@ -59,7 +59,8 @@ export function validateGeneratedContent(value:unknown,count:number):GeneratedCo
   const normalized=(text:string)=>text.replace(/\s+/g,"").toLowerCase();
   const bodies=contents.map((post)=>normalized(post.body)),angles=contents.map((post)=>normalized(post.angle));
   const hooks=contents.map((post)=>normalized(post.body.split(/[\n.!?。]/)[0]));
-  if(new Set(bodies).size!==count||new Set(angles).size!==count||new Set(hooks).size!==count)throw new DraftInputError("내용이나 후킹이 겹치는 결과입니다. 다른 관점으로 다시 생성해 주세요.");
+  if(planning?new Set(contents.map(p=>normalized(p.label))).size!==count:new Set(bodies).size!==count||new Set(angles).size!==count||new Set(hooks).size!==count)throw new DraftInputError("내용이나 후킹이 겹치는 결과입니다. 다른 관점으로 다시 생성해 주세요.");
+  if(planning)return contents;
   // Reject near-copy variants rather than treating word substitution as multi-generation.
   const grams=(text:string)=>new Set(Array.from({length:Math.max(0,text.length-3)},(_,i)=>text.slice(i,i+4)));
   for(let i=0;i<bodies.length;i++)for(let j=0;j<i;j++){

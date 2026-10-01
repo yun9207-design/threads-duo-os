@@ -8,11 +8,11 @@ import { PublishingError } from "@/lib/threads-publishing";
 
 export type PostInput = {
   body: string; mode: "draft" | "now" | "schedule"; draftId?: string; expectedUpdatedAt?: string;
-  scheduledAt: string | null; accountId: string | null; allowDuplicate: boolean;
+  scheduledAt: string | null; accountId: string | null; allowDuplicate: boolean; categoryId?:string|null;
 };
 
 export function parsePostInput(value: unknown): PostInput {
-  const allowed = ["body","mode","draftId","expectedUpdatedAt","scheduledAt","accountId","allowDuplicate"];
+  const allowed = ["body","mode","draftId","expectedUpdatedAt","scheduledAt","accountId","allowDuplicate","categoryId"];
   if (!value || typeof value !== "object" || Array.isArray(value)
     || Object.keys(value).some((key) => !allowed.includes(key))) throw new DraftInputError("글 입력을 확인해 주세요.");
   const input = value as Record<string, unknown>;
@@ -20,6 +20,7 @@ export function parsePostInput(value: unknown): PostInput {
     || !["draft","now","schedule"].includes(input.mode as string)) throw new DraftInputError("본문은 1~500자로 작성해 주세요.");
   if (input.draftId !== undefined && (typeof input.draftId !== "string" || !isUuid(input.draftId))) throw new DraftInputError("글 ID를 확인해 주세요.");
   if (input.accountId != null && (typeof input.accountId !== "string" || !isUuid(input.accountId))) throw new DraftInputError("게시 계정을 확인해 주세요.");
+  if(input.categoryId!=null&&(typeof input.categoryId!=="string"||!isUuid(input.categoryId)))throw new DraftInputError("카테고리를 확인해 주세요.");
   if (input.allowDuplicate !== undefined && typeof input.allowDuplicate !== "boolean") throw new DraftInputError("중복 게시 확인을 다시 해 주세요.");
   let scheduledAt: string | null = null;
   if (input.mode === "schedule") {
@@ -31,6 +32,7 @@ export function parsePostInput(value: unknown): PostInput {
     draftId: input.draftId as string | undefined,
     expectedUpdatedAt: input.draftId ? parseDeleteInput({ expectedUpdatedAt: input.expectedUpdatedAt }) : undefined,
     scheduledAt, accountId: input.accountId as string | null ?? null, allowDuplicate: input.allowDuplicate === true,
+    ...(input.categoryId!==undefined?{categoryId:input.categoryId as string|null}:{}),
   };
 }
 
@@ -50,11 +52,7 @@ function mutationError(code?: string) {
 
 export async function saveProductPost(workspaceId: string, input: PostInput) {
   const client = await productClient(workspaceId);
-  const result = await client.rpc("save_product_post", {
-    p_workspace_id: workspaceId, p_body: input.body, p_mode: input.mode,
-    p_draft_id: input.draftId, p_expected_updated_at: input.expectedUpdatedAt,
-    p_scheduled_at: input.scheduledAt, p_account_id: input.accountId, p_allow_duplicate: input.allowDuplicate,
-  });
+  const result = await client.rpc("save_categorized_posts",{p_workspace_id:workspaceId,p_posts:[input]});
   if (result.error || !result.data?.[0]) mutationError(result.error?.code);
   return result.data![0];
 }
@@ -64,9 +62,9 @@ export async function saveProductBatch(workspaceId: string, value: unknown) {
   const posts = value.map(parsePostInput);
   if (posts.some((post) => post.draftId || post.mode === "now")) throw new DraftInputError("여러 글은 임시저장 또는 전체 예약으로 등록해 주세요.");
   const client = await productClient(workspaceId);
-  const result = await client.rpc("save_product_batch", { p_workspace_id: workspaceId,
+  const result = await client.rpc("save_categorized_posts", { p_workspace_id: workspaceId,
     p_posts: posts.map((post) => ({ body: post.body, mode: post.mode, scheduledAt: post.scheduledAt,
-      accountId: post.accountId, allowDuplicate: post.allowDuplicate })) });
+      accountId: post.accountId, allowDuplicate: post.allowDuplicate,...(post.categoryId!==undefined?{categoryId:post.categoryId}:{}) })) });
   if (result.error) mutationError(result.error.code);
   return result.data!;
 }

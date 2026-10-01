@@ -1,5 +1,7 @@
 # PROJECT PLAN — Threads Duo OS
 
+P2 구현: 주간 목표 → AI 계획 → 실제 글 생성/편집 → 시간 배분 → Calendar/Queue 원자적 저장 → 반복 슬롯 관리 → Dashboard/내부 Analytics. 반복 슬롯과 실제 글을 분리하고 검토 전 Queue 등록을 막는다. Meta 토큰 없이 운영 계획과 예약까지 사용 가능하다. 무인 AI 생성과 Threads Insights 수집은 후속 범위다. 기존 Auth/게시 엔진을 재작성하지 않았다. 상세: `docs/CONTENT_OPERATIONS.md`.
+
 최신 단계는 **P1 Threads AI 콘텐츠 엔진**이다. 주제 → 단일/복수/시리즈 생성 → 편집·다듬기 → 선택 → KST 자동 시간 배분 → 일괄 Queue 등록을 구현했다. 기본 템플릿 15개와 workspace 사용자 템플릿, 영속 생성 이력과 실제 게시 여부 연결을 제공한다. 기존 Auth/Workspace/Drafts/게시 엔진을 유지하며 추가 로그인·A/B/RLS 반복 검사는 수행하지 않는다. P1 전용 자동검사·실제 AI·브라우저 흐름 확인 후 main Git 배포를 진행한다. 세부 범위는 `docs/AI_CONTENT.md`, 실행 증거는 `docs/TEST_NOTES.md`에 기록한다.
 
 최신 범위: **Threads Pro P0 제품화**. Dashboard → 계정 → Composer → Queue → History를 실제 페이지로 연결하고 수동 여러 글 등록을 추가했다. 기존 게시 엔진을 즉시 게시와 예약 실행기에서 함께 사용한다. 새 예약만 `auto_publish`로 실행에 동의하며 기존 수동 예약은 자동 실행하지 않는다. Meta 토큰 연결과 Cron 설정 상태는 `docs/PRO_PRODUCT.md`에 기록한다. 다음 제품 기능은 P1 AI 작성 도우미이며 P2는 구현하지 않았다. 아래는 보존된 이전 단계 기록이다.

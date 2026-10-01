@@ -1,4 +1,5 @@
 // Types for the workspace, drafts and approval history migrations.
+import type {Category,ContentPlan,RecurringSchedule} from "../content-operations";
 export type DraftStatus = "draft" | "pending" | "approved";
 export type PublicationStatus = "unpublished" | "publishing" | "published" | "failed";
 export type ThreadsAccountRow = {
@@ -7,7 +8,7 @@ export type ThreadsAccountRow = {
   last_checked_at: string | null; token_status: "valid" | "invalid" | "unknown";
 };
 export type DraftRow = {
-  id: string; workspace_id: string; author_profile_id: string;
+  id: string; workspace_id: string; author_profile_id: string; category_id:string|null;
   topic: string; body: string; status: DraftStatus;
   created_at: string; updated_at: string; deleted_at: string | null; scheduled_at: string | null;
   publication_status: PublicationStatus; threads_account_id: string | null;
@@ -29,6 +30,7 @@ export type AiPostRow = {id:string;workspace_id:string;generation_id:string;posi
 export type ContentTemplateRow = {id:string;workspace_id:string;created_by:string;name:string;instruction:string;purpose:string;tone:string;
   created_at:string;updated_at:string;deleted_at:string|null};
 type ProfileRow = { id: string; display_name: string | null; created_at: string };
+type PlanItemJson=import("../content-operations").PlanItem;
 type WorkspaceRow = { id: string; name: string; created_by: string; created_at: string };
 type MemberRow = {
   workspace_id: string;
@@ -40,6 +42,9 @@ type MemberRow = {
 export type Database = {
   public: {
     Tables: {
+      content_categories:{Row:Category;Insert:{workspace_id:string;created_by:string;name:string;color:string};Update:{name?:string;color?:string;archived_at?:string};Relationships:[]};
+      content_plans:{Row:ContentPlan;Insert:{workspace_id:string;created_by:string;request_id:string;business:string;goal:string;audience:string;start_date:string;end_date:string;target_count:number;mix:Record<string,number>;items:PlanItemJson[];status?:string};Update:{items?:PlanItemJson[];status?:string};Relationships:[]};
+      recurring_schedules:{Row:RecurringSchedule;Insert:Omit<RecurringSchedule,"id"|"updated_at">&{created_by:string};Update:Partial<Omit<RecurringSchedule,"id"|"workspace_id"|"updated_at">>;Relationships:[]};
       ai_generation_jobs:{Row:AiGenerationRow;Insert:never;Update:{status?:string;error?:string;completed_at?:string};Relationships:[]};
       ai_generated_posts:{Row:AiPostRow;Insert:never;Update:{body?:string;draft_id?:string;deleted_at?:string};Relationships:[]};
       content_templates:{Row:ContentTemplateRow;Insert:{workspace_id:string;created_by:string;name:string;instruction:string;purpose:string;tone:string};
@@ -130,6 +135,8 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      save_categorized_posts:{Args:{p_workspace_id:string;p_posts:Json;p_ai?:boolean};Returns:DraftRow[]};
+      place_content_plan:{Args:{p_workspace_id:string;p_plan_id:string;p_expected_updated_at:string;p_posts:Json};Returns:DraftRow[]};
       ai_server_credential:{Args:{p_workspace_id:string;p_server_secret:string};Returns:string|null};
       reserve_ai_generation:{Args:{p_workspace_id:string;p_id:string;p_hash:string;p_parameters:Json;p_model:string};Returns:Json};
       finish_ai_generation:{Args:{p_workspace_id:string;p_id:string;p_posts:Json};Returns:AiPostRow[]};

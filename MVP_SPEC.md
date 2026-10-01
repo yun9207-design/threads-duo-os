@@ -1,5 +1,9 @@
 # MVP SPEC
 
+## 최신 제품 범위 — 자동운영 P2
+
+Calendar 월간/주간, 주간 Planner(1~30개), 100% 콘텐츠 믹스, 실제 AI 글 생성/편집, 기존 예약을 피한 KST 배분, 검토 후 Calendar+Queue 배치, 반복 요일/템플릿 슬롯, 기본 12종/사용자 카테고리, 부족 콘텐츠 제안, 주간 Dashboard 및 내부 운영 차트를 제공한다. Meta Insights는 연결 대기 표시와 nullable 스키마만 준비하며 가짜 수치를 넣지 않는다. 무인 AI 생성이나 동일 글 반복 재게시를 자동 활성화하지 않는다. 상세: `docs/CONTENT_OPERATIONS.md`.
+
 ## 최신 제품 범위 — Threads AI P1
 
 - Composer에 직접 작성/AI 작성/대량 생성 탭을 제공한다.
