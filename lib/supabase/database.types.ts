@@ -1,9 +1,13 @@
-// Types for migrations 001/002. Drafts require migration 002 before use.
+// Types for the workspace, drafts and approval history migrations.
 export type DraftStatus = "draft" | "pending" | "approved";
 export type DraftRow = {
   id: string; workspace_id: string; author_profile_id: string;
   topic: string; body: string; status: DraftStatus;
   created_at: string; updated_at: string; deleted_at: string | null;
+};
+export type DraftApprovalHistoryRow = {
+  id: string; draft_id: string; workspace_id: string; actor_user_id: string;
+  from_status: DraftStatus; to_status: DraftStatus; note: string | null; created_at: string;
 };
 type ProfileRow = { id: string; display_name: string | null; created_at: string };
 type WorkspaceRow = { id: string; name: string; created_by: string; created_at: string };
@@ -17,6 +21,24 @@ type MemberRow = {
 export type Database = {
   public: {
     Tables: {
+      draft_approval_history: {
+        Row: DraftApprovalHistoryRow;
+        Insert: never;
+        Update: never;
+        Relationships: [{
+          foreignKeyName: "draft_approval_history_draft_id_fkey";
+          columns: ["draft_id"]; isOneToOne: false;
+          referencedRelation: "drafts"; referencedColumns: ["id"];
+        }, {
+          foreignKeyName: "draft_approval_history_workspace_id_fkey";
+          columns: ["workspace_id"]; isOneToOne: false;
+          referencedRelation: "workspaces"; referencedColumns: ["id"];
+        }, {
+          foreignKeyName: "draft_approval_history_actor_user_id_fkey";
+          columns: ["actor_user_id"]; isOneToOne: false;
+          referencedRelation: "profiles"; referencedColumns: ["id"];
+        }];
+      };
       drafts: {
         Row: DraftRow;
         Insert: {
@@ -76,7 +98,13 @@ export type Database = {
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      update_draft_with_history: {
+        Args: { p_workspace_id: string; p_draft_id: string; p_expected_updated_at: string;
+          p_topic: string; p_body: string; p_status: DraftStatus; p_note?: string | null };
+        Returns: DraftRow[];
+      };
+    };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };

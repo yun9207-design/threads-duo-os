@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { Icon } from "@/components/icon";
 import { SessionControls } from "@/components/session-controls";
+import { DraftApprovalHistory } from "@/components/draft-approval-history";
 import type { DraftWorkspace } from "@/lib/drafts";
 import type { DraftRow, DraftStatus } from "@/lib/supabase/database.types";
 
@@ -22,6 +23,7 @@ export function TodayDashboard({ userEmail, workspace, initialDrafts, loadError 
   const [topic, setTopic] = useState("");
   const [body, setBody] = useState("");
   const [status, setStatus] = useState<DraftStatus>("draft");
+  const [approvalNote, setApprovalNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(loadError);
   const [notice, setNotice] = useState("");
@@ -42,6 +44,7 @@ export function TodayDashboard({ userEmail, workspace, initialDrafts, loadError 
     setTopic(draft?.topic ?? "");
     setBody(draft?.body ?? "");
     setStatus(draft?.status ?? "draft");
+    setApprovalNote("");
     setConfirmDelete(false);
     setNotice("");
     if (!loadError) setError("");
@@ -87,10 +90,13 @@ export function TodayDashboard({ userEmail, workspace, initialDrafts, loadError 
     try {
       const result: { draft: DraftRow } = await request(
         editing ? baseUrl + "/" + editing.id : baseUrl, editing ? "PATCH" : "POST",
-        { topic, body, status, ...(editing ? { expectedUpdatedAt: editing.updated_at } : {}) },
+        { topic, body, status, ...(editing ? {
+          expectedUpdatedAt: editing.updated_at, approvalNote: status !== editing.status ? approvalNote : "",
+        } : {}) },
       );
       // A successful DB response becomes the editor's next concurrency version.
       setEditing(result.draft); setTopic(result.draft.topic); setBody(result.draft.body);
+      setStatus(result.draft.status); setApprovalNote("");
       setConfirmDelete(false); saved = true;
       await reloadDrafts();
       setNotice("글이 저장되었습니다.");
@@ -205,6 +211,11 @@ export function TodayDashboard({ userEmail, workspace, initialDrafts, loadError 
                   <select id="draft-status" value={status} onChange={(event) => setStatus(event.target.value as DraftStatus)}>
                     <option value="draft">초안</option><option value="pending">승인 대기</option><option value="approved">승인됨</option>
                   </select>
+                  {editing && status !== editing.status && <>
+                    <label htmlFor="draft-approval-note">상태 변경 메모 (선택)</label>
+                    <textarea id="draft-approval-note" value={approvalNote} rows={2} maxLength={1000}
+                      placeholder="상태를 변경한 이유를 남겨보세요." onChange={(event) => setApprovalNote(event.target.value)} />
+                  </>}
                   <div className="draft-editor-actions">
                     <button className="button primary" type="submit">{busy ? "처리 중…" : editing ? "변경 저장" : "글 저장"}<Icon name="arrow" size={15} /></button>
                     {editing && <button className="draft-secondary" type="button" onClick={() => openDraft(null)}>새 글 작성</button>}
@@ -216,6 +227,8 @@ export function TodayDashboard({ userEmail, workspace, initialDrafts, loadError 
                 </fieldset>
               </form>
               {editing && <p className="studio-footnote">작성자 {authorName(editing.author_profile_id)} · 마지막 저장 {savedDate(editing.updated_at)}</p>}
+              {editing && workspace && <DraftApprovalHistory key={editing.id + editing.updated_at}
+                workspaceId={workspace.workspace.id} draftId={editing.id} actorName={authorName} />}
             </section>
           </div>
           <section className="panel drafts-pending-panel" id="review">

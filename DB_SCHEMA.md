@@ -1,5 +1,9 @@
 # DB SCHEMA
 
+## 현재 Approval History 추가 스키마
+
+실제 적용 migration: `20261001095837_draft_approval_history.sql`. `draft_approval_history(id, draft_id, workspace_id, actor_user_id, from_status, to_status, note, created_at)`를 추가했다. draft/workspace/actor FK 및 조회 인덱스, 현재 workspace 멤버만 읽는 RLS를 사용한다. 앱의 직접 이력 쓰기는 허용하지 않으며 상태 변경 trigger가 원자적으로 기록한다. 메모를 전달하는 SECURITY INVOKER RPC와 private trigger의 권한 구조는 `docs/APPROVAL_HISTORY.md`에 있다. 기존 테이블 열·기존 RLS·Auth는 변경하지 않았다.
+
 ## 현재 Drafts 추가 스키마 (migration 002)
 
 2026-10-01 실제 `threads-duo-os` Supabase 프로젝트에 적용 완료. 파일은 `202610010002_drafts_crud.sql`이며 MCP가 생성한 원격 migration 이력은 `20261001090952 / drafts_crud`다. 기존 migration 001은 이전 단계의 관리자 적용 상태를 유지한다. 이 파일을 원격에 다시 적용하지 않는다. 향후 CLI 도입 시 기존 수동 적용 baseline 및 원격 이력과 로컬 파일 버전을 먼저 정합화해야 한다.

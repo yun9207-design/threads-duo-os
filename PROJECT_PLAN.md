@@ -1,5 +1,7 @@
 # PROJECT PLAN — Threads Duo OS
 
+최신 완료 범위는 Draft 승인 이력이다. 실제 DB trigger와 메모 저장 RPC, 멤버 전용 이력 조회, 기존 편집 카드의 시간순 이력 표시를 추가했다. draft → pending → approved의 정확히 2건을 격리 DB와 기존 실제 세션에서 확인했다. 아래 Drafts 완료 기록을 보존하며 Auth/Workspace/기존 RLS 검사는 반복하지 않았다. 상세는 `docs/APPROVAL_HISTORY.md`를 따른다.
+
 현재 완료 범위는 Drafts 실제 DB CRUD다. Auth/Session/Workspace/기존 RLS는 동결하며 추가 A/B 로그인이나 동일 권한 검사를 반복하지 않았다. 기반 main/Vercel 배포(`9dd7e70`) 이후 글의 작성·목록·수정·soft delete와 draft/pending/approved 상태 저장을 구현했다. 실제 Supabase 적용, 기존 세션의 브라우저 CRUD·새로고침 유지·복구·외부 workspace 차단과 lint/type/build 검사를 통과했다. 테스트 글 한 개는 복구 확인 후 다시 soft delete했다. 상세 적용 상태는 `docs/DRAFTS.md`를 따른다. Threads·AI·예약·게시·성과·결제는 이번 범위에 없다.
 
 ## Product thesis

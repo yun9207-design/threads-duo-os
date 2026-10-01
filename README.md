@@ -1,5 +1,7 @@
 # Threads Duo OS
 
+최신 추가 기능: **Draft 승인 이력**. 상태 변경 시 변경자·이전/새 상태·시간·선택적 메모를 DB에 자동 기록하고 기존 글 편집 카드에서 시간순으로 조회한다. [구조와 사용 흐름](docs/APPROVAL_HISTORY.md)을 참고한다.
+
 현재 구현: **실제 Supabase Drafts CRUD**. 실제 프로젝트에 migration을 적용하고 기존 로그인 세션으로 작성·목록·수정·상태 변경·새로고침 유지·soft delete·관리자 복구와 외부 workspace 차단을 확인했다. Dashboard의 글 목록·건수·승인 대기 카드는 DB 데이터를 사용한다. Auth/Session/Workspace/기존 RLS는 완료된 기반으로 동결한다. 구현·DB 구조·적용 상태는 [docs/DRAFTS.md](docs/DRAFTS.md), 검증 증거는 [docs/TEST_NOTES.md](docs/TEST_NOTES.md)를 기준으로 한다. 아래 초기 mock 기록은 개발 이력으로 보존한다.
 
 두 명이 함께 사용하는 비공개 Threads 운영 웹앱.

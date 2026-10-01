@@ -9,3 +9,4 @@ node_modules
 out/
 .vercel/
 .tools/
+supabase/.temp/

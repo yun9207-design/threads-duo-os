@@ -1,5 +1,9 @@
 # SECURITY
 
+## Approval History 추가 경계
+
+이력은 멤버 SELECT만 허용하고 클라이언트 INSERT/UPDATE/DELETE는 금지한다. 변경자 ID는 auth.uid에서 결정한다. private 기록 trigger의 제한된 SECURITY DEFINER는 비어 있는 search_path, 명시적 사용자/멤버십 검사, 직접 EXECUTE 금지로 보호한다. 메모 전달 RPC는 SECURITY INVOKER로 기존 drafts RLS·열 권한·버전 조건을 유지한다. React는 메모를 텍스트로 표시한다. 공개/secret key 및 기존 Auth/Workspace 정책은 변경하지 않았다. 상세는 `docs/APPROVAL_HISTORY.md`를 따른다.
+
 ## Drafts 추가 경계
 
 기존 Auth/Session/Workspace 정책은 동결한다. Drafts만 workspace 멤버 SELECT/UPDATE, 본인 작성 INSERT를 허용한다. 열 권한과 identity trigger로 workspace/작성자/ID/작성일 변경을 막는다. 작성자 ID는 서버 검증 사용자로 결정하며 API 입력의 identity/추가 필드는 거절한다. 익명과 다른 workspace는 DB RLS에서도 차단한다. 저장 상태값 approved는 외부 게시 권한을 부여하지 않는다.

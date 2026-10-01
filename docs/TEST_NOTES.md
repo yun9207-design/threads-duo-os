@@ -1,5 +1,18 @@
 # TEST NOTES
 
+## 2026-10-01 — Draft Approval History
+
+`20261001095837_draft_approval_history.sql`을 실제 프로젝트에 적용했다. 기존 Auth/Session/Workspace/기존 RLS 검사와 A/B 로그인은 반복하지 않았다. 새로운 이력 테이블의 멤버 SELECT 정책, private 기록 trigger, invoker 메모 RPC만 추가했다. 기존 CRUD/Dashboard/MASTER_PLAN/MD를 유지한다.
+
+- `node scripts/test-approval-history.mjs`: PASS. PostgreSQL에서 draft → pending → approved의 정확히 2개 이력과 시간순 조회를 확인했다. actor/workspace 및 선택적 메모가 맞고 본문/같은 상태 재저장에는 추가 이력이 없다.
+- 기존 실제 로그인 세션의 UI에서 새 검증 글을 작성하고 두 번 상태를 변경했다. 첫 메모는 `검토를 부탁해요`, 두 번째는 미입력이다. GET history와 화면에 정확히 2건이 표시됐다.
+- 실제 SQL 대조: 글 `d1817933-be0b-4497-8ca6-bd78212b8b1b`의 draft → pending 시각은 `2026-10-01T09:59:31.016297Z`, pending → approved는 `2026-10-01T09:59:32.025968Z`다. 두 actor_user_id는 기존 A UID이며 메모는 첫 행의 입력값/둘째 null과 일치했다. 화면에는 KST 18:59:31 → 18:59:32 순서로 표시됐다.
+- 검증 글은 기존 UI로 soft delete해 정리했고 DB 이력은 그대로 2건 보존됐다. 사용자 글을 수정/삭제하지 않았다. [실제 이력 화면](screenshots/approval-history-live.jpg).
+- lint/typecheck/production build: PASS. 새 GET history 경로가 동적 API로 빌드됐다. 기존 Auth 파일·workspace DAL/API·이전 migration은 변경하지 않았다. MASTER_PLAN 원본/사본 SHA256이 기존 값과 동일하고 실제 env 및 CLI 임시 파일은 Git 제외다.
+- Supabase security advisor에 새 이력 테이블/함수 경고는 없다. 기존 [Auth 유출 비밀번호 보호 비활성 경고](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection)는 이전 단계에서 기록한 동일 항목이며 동결 범위라 설정을 변경하지 않았다.
+
+위 검증 상태로 main에 commit/push하여 Vercel Git 배포한다. 배포 성공 여부는 해당 커밋의 Vercel status와 최종 실행 보고를 기준으로 한다. 게시/AI/예약/Threads 기능은 추가하지 않았다.
+
 ## 2026-10-01 — Drafts 실제 Supabase 적용 / CRUD 완료
 
 Supabase 연결 후 준비된 migration 002를 실제 프로젝트 `qemmkooyjmqaduofoquf`에 적용했다. 원격 이력: `20261001090952 / drafts_crud`. 기존 세 테이블과 멤버십은 그대로이며 새 테이블의 3개 RLS 정책/열 권한을 확인했다. 앱은 기존 publishable 키와 로그인 쿠키를 사용하고 관리자 연결은 migration 및 해당 테스트 행 확인/복구에만 사용했다.

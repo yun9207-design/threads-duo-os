@@ -4,7 +4,7 @@
 
 Today Dashboard에서 새 글 작성, 목록/상태 필터, 수정, 삭제를 제공한다. Auth/Session/기존 workspace 코드·정책을 재설계하지 않는다. 현재 workspace는 로그인 사용자가 조회할 수 있는 이름 `Duo Workspace` 한 개로 선택하며 없거나 중복되면 접근을 열지 않는다.
 
-글의 `draft / pending / approved`는 저장하는 상태값이다. 별도 승인 이력, reviewer, Threads 계정, OAuth, AI, 예약/게시, Analytics, 결제 기능은 없다. `approved`를 저장해도 외부에 게시하지 않는다. owner/member 모두 공동 글을 수정할 수 있다.
+글의 `draft / pending / approved`는 저장하는 상태값이다. 후속 [Approval History](APPROVAL_HISTORY.md) 단계에서 상태 변경 이력과 선택적 메모를 추가했다. 별도 reviewer 권한, Threads 계정, OAuth, AI, 예약/게시, Analytics, 결제 기능은 없다. `approved`를 저장해도 외부에 게시하지 않는다. owner/member 모두 공동 글을 수정할 수 있다.
 
 ## 스키마 / 권한
 
@@ -27,7 +27,7 @@ Today Dashboard에서 새 글 작성, 목록/상태 필터, 수정, 삭제를 �
 | `/api/workspaces/[workspaceId]/drafts` | GET / POST | 활성 글 목록 / 생성 |
 | `/api/workspaces/[workspaceId]/drafts/[draftId]` | GET / PATCH / DELETE | 활성 글 조회 / 수정 / soft delete |
 
-POST 입력: `{ topic, body, status }`. PATCH는 위 세 값과 `expectedUpdatedAt`; DELETE는 `expectedUpdatedAt`만 받는다. ID/작성자/workspace 등 알 수 없는 입력 필드는 거절한다. UPDATE/DELETE는 DB 수정 시각을 조건으로 사용해 오래된 편집은 409로 거절한다. 다른 사용자가 수정한 경우 목록을 새로 불러오고 해당 글을 다시 열어 수정한다.
+POST 입력: `{ topic, body, status }`. PATCH는 위 세 값과 `expectedUpdatedAt`, 선택적 `approvalNote`; DELETE는 `expectedUpdatedAt`만 받는다. PATCH는 현재 메모 전달 RPC를 사용한다. ID/작성자/workspace 등 알 수 없는 입력 필드는 거절한다. UPDATE/DELETE는 DB 수정 시각을 조건으로 사용해 오래된 편집은 409로 거절한다. 다른 사용자가 수정한 경우 목록을 새로 불러오고 해당 글을 다시 열어 수정한다.
 
 각 API는 기존 서버용 세션 클라이언트를 통해 getUser와 실제 멤버십을 확인하고 JWT로 Data API를 호출한다. URL ID를 바꿔도 RLS와 workspace/id 조건이 유지된다. 익명 401, 접근 불가/없음 404, 입력 400, 다른 origin 403, 너무 큰 JSON 413, 충돌 409, DB 오류 503을 반환한다. 응답은 `private, no-store`이며 DB 내부 오류/토큰을 노출하지 않는다. mutation은 같은 Origin/Host의 JSON만 받는다.
 

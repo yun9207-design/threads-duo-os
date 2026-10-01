@@ -22,10 +22,10 @@ function textInput(value: unknown, name: string, max: number, required = false) 
   return required ? value.trim() : value;
 }
 
-export function parseDraftInput(value: unknown, update: true): DraftContent & { expectedUpdatedAt: string };
+export function parseDraftInput(value: unknown, update: true): DraftContent & { expectedUpdatedAt: string; approvalNote: string | null };
 export function parseDraftInput(value: unknown, update?: false): DraftContent;
 export function parseDraftInput(value: unknown, update = false) {
-  const input = objectInput(value, update ? ["topic", "body", "status", "expectedUpdatedAt"] : ["topic", "body", "status"]);
+  const input = objectInput(value, update ? ["topic", "body", "status", "expectedUpdatedAt", "approvalNote"] : ["topic", "body", "status"]);
   if (!["draft", "pending", "approved"].includes(input.status as string)) {
     throw new DraftInputError("초안 상태를 확인해 주세요.");
   }
@@ -34,7 +34,8 @@ export function parseDraftInput(value: unknown, update = false) {
     body: textInput(input.body, "본문", 5000),
     status: input.status as DraftStatus,
   };
-  return update ? { ...content, expectedUpdatedAt: parseVersion(input.expectedUpdatedAt) } : content;
+  return update ? { ...content, expectedUpdatedAt: parseVersion(input.expectedUpdatedAt),
+    approvalNote: input.approvalNote == null ? null : textInput(input.approvalNote, "상태 변경 메모", 1000).trim() || null } : content;
 }
 
 export type DraftContent = { topic: string; body: string; status: DraftStatus };

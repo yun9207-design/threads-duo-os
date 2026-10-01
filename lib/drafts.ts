@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
-import { isUuid, type DraftContent } from "@/lib/drafts-validation";
+import { isUuid, DraftInputError, type DraftContent } from "@/lib/drafts-validation";
 import { listWorkspaces, readWorkspace } from "@/lib/workspaces";
 
 export type DraftWorkspace = Awaited<ReturnType<typeof readWorkspace>>;
@@ -72,16 +72,38 @@ export async function createDraft(workspaceId: string, content: DraftContent) {
 }
 
 export async function changeDraft(workspaceId: string, draftId: string, expectedUpdatedAt: string,
-  changes: DraftContent | { deleted_at: string }) {
+  changes: (DraftContent & { approvalNote?: string | null }) | { deleted_at: string }) {
   const { client } = await workspaceClient(workspaceId);
   if (!isUuid(draftId)) throw new DraftAccessError(404);
-  const { data, error } = await client.from("drafts").update(changes)
-    .eq("workspace_id", workspaceId).eq("id", draftId).eq("updated_at", expectedUpdatedAt)
-    .is("deleted_at", null).select("*").maybeSingle();
-  if (error) throw new DraftAccessError(503);
+  const result = "deleted_at" in changes
+    ? await client.from("drafts").update(changes)
+      .eq("workspace_id", workspaceId).eq("id", draftId).eq("updated_at", expectedUpdatedAt)
+      .is("deleted_at", null).select("*").maybeSingle()
+    : await client.rpc("update_draft_with_history", {
+      p_workspace_id: workspaceId, p_draft_id: draftId, p_expected_updated_at: expectedUpdatedAt,
+      p_topic: changes.topic, p_body: changes.body, p_status: changes.status, p_note: changes.approvalNote ?? null,
+    });
+  if (result.error?.code === "22023") throw new DraftInputError("메모는 상태를 변경할 때 최대 1,000자로 저장할 수 있습니다.");
+  if (result.error) throw new DraftAccessError(503);
+  const data = Array.isArray(result.data) ? result.data[0] : result.data;
   if (!data) {
     await readDraft(workspaceId, draftId); // Same generic 404 for absent/inaccessible rows.
     throw new DraftAccessError(409);
   }
   return data;
+}
+
+export async function listDraftApprovalHistory(workspaceId: string, draftId: string) {
+  await readDraft(workspaceId, draftId);
+  const client = await createClient();
+  if (!client) throw new DraftAccessError(503);
+  const history = [];
+  for (let start = 0; ; start += 100) {
+    const { data, error } = await client.from("draft_approval_history").select("*")
+      .eq("workspace_id", workspaceId).eq("draft_id", draftId)
+      .order("created_at", { ascending: true }).order("id", { ascending: true }).range(start, start + 99);
+    if (error) throw new DraftAccessError(503);
+    history.push(...data);
+    if (data.length < 100) return history;
+  }
 }

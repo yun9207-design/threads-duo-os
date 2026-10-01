@@ -1589,3 +1589,12 @@ main {
 .dashboard-footer a { display: flex; align-items: center; gap: 6px; }
 @media (max-width: 1100px) { .drafts-grid { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 780px) { .drafts-pending-panel .review-list { grid-template-columns: minmax(0, 1fr); } }
+
+.draft-approval-history { margin-top: 22px; padding-top: 20px; border-top: 1px solid #e2e6ed; }
+.draft-approval-history h3 { margin: 0 0 14px; font-size: 13px; }
+.draft-approval-history > p { color: #8a909d; font-size: 11px; }
+.draft-approval-history ol { list-style: none; margin: 0; padding: 0; }
+.draft-approval-history li { border-left: 2px solid #efb09b; padding: 0 0 16px 12px; overflow-wrap: anywhere; }
+.draft-approval-history li strong { font-size: 12px; }
+.draft-approval-history li div { margin-top: 6px; font-size: 10px; color: #8a909d; }
+.draft-approval-history .approval-note { margin: 8px 0 0; font-size: 11px; line-height: 1.7; white-space: pre-wrap; }
