@@ -1,5 +1,11 @@
 # TEST NOTES
 
+## 2026-10-02 — Threads Pro P0 제품화
+
+새 제품 화면과 실제 DB 저장/큐/실행기 연동을 구현했다. `node scripts/test-pro-product.mjs` PASS: 새 단일 저장/편집/중복 확인, 일괄 예약 atomic rollback, 수정/취소/안전한 실패 재예약, 즉시 게시 claim과 기존 엔진 결과 저장, due-only worker/중복 claim 방지, History 숨김·복구. 기존 Auth/A-B/동일 RLS/이전 기능 검사는 반복하지 않았다. Meta 실제 응답은 이 검사에 포함하지 않는다.
+
+실제 Supabase에 P0/requeue migration을 적용하고 기존 A subject의 신규 예약 저장 RPC를 transaction smoke 후 rollback했다. 브라우저 격리 preview는 실제 ProductApp+Postgres로 작성/미리보기/임시저장/예약 등록/승인 이력 연결, Queue 새로고침 유지/시간 수정/취소, 두 글 일괄 시간 배분/전체 예약을 확인했다. 실제 운영 사이트에 preview/Auth 우회 코드는 추가하지 않는다. Meta 토큰은 아직 없으며 자동 Cron 키 전송은 승인 대기다. 현재 사용 화면과 설치 경계는 `PRO_PRODUCT.md`를 따른다.
+
 ## 2026-10-01 — Threads 실제 게시 엔진 1단계
 
 `20261001110343_threads_text_publishing.sql`을 실제 Supabase 프로젝트에 적용했다. 계정 metadata, 독립 publication_status/게시 ID/시각/오류/원자적 시도 잠금만 추가했다. 기존 Auth/Workspace/승인 상태/RLS 정책/이전 migration은 변경하지 않았고 이전 기능이나 A/B 로그인 검사를 반복하지 않았다.

@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./product.css";
 
 export const metadata: Metadata = {
-  title: "Today · Threads Duo OS",
+  title: "Threads Pro · Threads Duo OS",
   description:
-    "두 사람의 Threads 콘텐츠를 함께 준비하는 Today Dashboard. Mock 데이터 미리보기.",
+    "Threads 글 작성, 예약 큐와 게시 결과를 한곳에서 운영하세요.",
 };
 
 export default function RootLayout({

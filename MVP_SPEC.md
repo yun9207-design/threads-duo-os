@@ -1,5 +1,17 @@
 # MVP SPEC
 
+## 최신 제품 범위 — Threads Pro P0
+
+- 실제 DB 기준 운영 Dashboard: 오늘 게시·예약·성공·실패·다음 예약·최근 5개·실패 경고.
+- Composer: 계정 선택, 500자 입력/글자 수, 미리보기, 중복 경고, 임시저장/편집/soft delete, 즉시 게시, KST 예약.
+- Queue: 대기/게시 중/성공/실패, 예약 수정·취소·즉시 게시. 자동 실행기는 due-only claim을 사용한다.
+- History: 게시 시각/본문/Threads ID/오류, 안전한 실패 재시도, 본문 복사, 숨김/다시 표시.
+- Accounts: 계정/토큰 설정 상태, 최근 확인, 게시 가능 여부, owner의 연결 확인. Meta 토큰이 없으면 연결 필요 안내.
+- 여러 글 등록: 최대 30개 직접 작성·각각 수정·시간 간격 지정·원자적 전체 저장/예약.
+- 기존 Auth/워크스페이스/승인 이력을 유지한다. AI, OAuth callback, Analytics, CSV, 반복 스케줄은 이번 P0에 추가하지 않는다.
+
+실제 사용과 외부 설정 경계는 `docs/PRO_PRODUCT.md`를 따른다. 아래 체크리스트는 최초 계획 및 이전 단계 기록으로 보존한다.
+
 현재 추가 범위는 승인·예약된 텍스트의 수동 실제 Threads 게시다. 서버 토큰과 계정 metadata, DB 시도 잠금/결과 저장, Dashboard 게시완료·게시오류 수치를 구현했다. Meta 연결 및 실제 글 1개 성공 확인은 credential 설정 전까지 미완료다. 기존 기능의 반복 로그인/RLS 검증은 수행하지 않았다.
 
 최신 추가 범위는 **Scheduling 1단계**다. approved 글만 미래 예약시간을 저장·수정·취소할 수 있으며 Dashboard에 시간순 목록과 KST 오늘/내일 이후 건수를 표시한다. DB에 저장된 예약은 새로고침 후 유지된다. 실제 게시 작업자/Threads API는 없다. 상세는 `docs/SCHEDULING.md`를 따른다.

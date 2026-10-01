@@ -13,7 +13,7 @@ class DraftRequestError extends Error {
   }
 }
 
-export async function draftRequestInput(request: Request) {
+export async function draftRequestInput(request: Request, maxBytes = 32768) {
   // Cookie-authenticated mutations accept only same-origin JSON requests.
   const publicUrl = new URL(request.url);
   // Next's internal dev URL can use localhost while the browser uses 127.0.0.1.
@@ -32,7 +32,7 @@ export async function draftRequestInput(request: Request) {
       const { value, done } = await reader.read();
       if (done) break;
       size += value.byteLength;
-      if (size > 32768) {
+      if (size > maxBytes) {
         await reader.cancel();
         throw new DraftRequestError(413);
       }

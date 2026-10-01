@@ -1,5 +1,11 @@
 # DB SCHEMA
 
+## Threads Pro P0 추가 구조
+
+`pro_product_p0`와 `pro_queue_requeue` migration을 실제 DB에 적용했다. drafts에 `auto_publish boolean`, `selected_threads_account_id uuid`, `history_hidden_at timestamptz`를 추가하고 선택 계정/workspace 복합 FK 및 due 부분 인덱스를 둔다. threads_accounts에는 `last_checked_at`, `token_status`를 추가한다. `queue_worker_status`는 workspace별 최근 실행 상태를 저장하며 멤버 SELECT만 허용한다. 원자적 단일/일괄 저장 RPC는 SECURITY INVOKER로 기존 drafts RLS를 따른다. 게시 결과가 불확실한 글은 계속 잠그며 안전하게 재시도 가능한 실패의 명시적 수정/재예약만 대기로 전환한다.
+
+예약 작업자는 기존 private 게시 연산을 재사용한다. 기존 workspace별 secret digest와 일치하는 서버 capability로 heartbeat/due claim/해당 시도 결과 저장만 허용한다. 일반 사용자에게 게시 결과 열 UPDATE를 허용하지 않는다. Cron/Vault 설치 migration은 별도 승인 후 적용하며 상세는 `docs/PRO_PRODUCT.md`에 있다. 아래 기존 스키마와 기획은 보존한다.
+
 추가 적용 migration: `20261001110343_threads_text_publishing.sql`. `threads_accounts`는 workspace별 Threads 사용자 ID/username/연결자/시각 metadata만 저장한다. `drafts`에 publication_status, threads_account_id, threads_container_id, threads_post_id, published_at, publish_error, publish_attempt_id, publish_started_at, publish_retryable을 추가했다. review status의 기존 세 값은 유지한다. 비노출 `private.threads_publishing_config`에는 서버 secret의 SHA256 digest만 저장하며 access token은 DB에 저장하지 않는다. metadata는 멤버 SELECT만 허용하고 게시 결과 열은 일반 client 쓰기가 불가능하다. 상세는 `docs/THREADS_PUBLISHING.md`.
 
 ## Scheduling 1단계 추가 스키마

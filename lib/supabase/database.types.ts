@@ -4,6 +4,7 @@ export type PublicationStatus = "unpublished" | "publishing" | "published" | "fa
 export type ThreadsAccountRow = {
   id: string; workspace_id: string; threads_user_id: string; username: string;
   connected_by: string; connected_at: string;
+  last_checked_at: string | null; token_status: "valid" | "invalid" | "unknown";
 };
 export type DraftRow = {
   id: string; workspace_id: string; author_profile_id: string;
@@ -13,6 +14,7 @@ export type DraftRow = {
   threads_container_id: string | null; threads_post_id: string | null; published_at: string | null;
   publish_error: string | null; publish_attempt_id: string | null;
   publish_started_at: string | null; publish_retryable: boolean;
+  auto_publish: boolean; selected_threads_account_id: string | null; history_hidden_at: string | null;
 };
 export type DraftApprovalHistoryRow = {
   id: string; draft_id: string; workspace_id: string; actor_user_id: string;
@@ -30,6 +32,10 @@ type MemberRow = {
 export type Database = {
   public: {
     Tables: {
+      queue_worker_status: {
+        Row: { workspace_id: string; last_run_at: string | null; status: string; detail: string | null };
+        Insert: never; Update: never; Relationships: [];
+      };
       threads_accounts: {
         Row: ThreadsAccountRow; Insert: never; Update: never; Relationships: [];
       };
@@ -56,7 +62,8 @@ export type Database = {
         Insert: {
           workspace_id: string; author_profile_id: string; topic: string; body?: string; status?: DraftStatus;
         };
-        Update: { topic?: string; body?: string; status?: DraftStatus; deleted_at?: string | null; scheduled_at?: string | null };
+        Update: { topic?: string; body?: string; status?: DraftStatus; deleted_at?: string | null; scheduled_at?: string | null;
+          auto_publish?: boolean; selected_threads_account_id?: string | null; history_hidden_at?: string | null };
         Relationships: [{
           foreignKeyName: "drafts_workspace_id_fkey";
           columns: ["workspace_id"]; isOneToOne: false;
@@ -111,6 +118,17 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      save_product_post: {
+        Args: { p_workspace_id: string; p_body: string; p_mode: string; p_draft_id?: string;
+          p_expected_updated_at?: string; p_scheduled_at?: string | null; p_account_id?: string | null; p_allow_duplicate?: boolean };
+        Returns: DraftRow[];
+      };
+      save_product_batch: { Args: { p_workspace_id: string; p_posts: Record<string,string|boolean|null>[] }; Returns: DraftRow[] };
+      product_worker_operation: {
+        Args: { p_workspace_id: string; p_secret: string; p_operation: string;
+          p_draft_id?: string; p_attempt_id?: string; p_data?: Record<string,string|boolean> };
+        Returns: unknown;
+      };
       threads_publish_operation: {
         Args: { p_workspace_id: string; p_secret: string; p_operation: string;
           p_draft_id?: string; p_expected_updated_at?: string; p_attempt_id?: string;

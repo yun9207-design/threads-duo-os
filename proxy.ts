@@ -7,5 +7,5 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   // The planning document and static assets stay public.
-  matcher: ["/", "/login"],
+  matcher: ["/", "/login", "/composer", "/queue", "/history", "/accounts", "/bulk"],
 };

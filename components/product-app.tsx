@@ -1,0 +1,303 @@
+"use client";
+
+import { useEffect,useState } from "react";
+import Link from "next/link";
+import { Icon,type IconName } from "@/components/icon";
+import { SessionControls } from "@/components/session-controls";
+import { DraftApprovalHistory } from "@/components/draft-approval-history";
+import type { DraftWorkspace } from "@/lib/drafts";
+import type { ThreadsConnection } from "@/lib/threads-publishing";
+import type { Database,DraftRow } from "@/lib/supabase/database.types";
+import { kstInput,kstInputToIso,scheduledDate } from "@/lib/draft-scheduling";
+
+export type ProductView="dashboard"|"composer"|"queue"|"history"|"accounts"|"bulk";
+type Worker=Database["public"]["Tables"]["queue_worker_status"]["Row"]|null;
+const navigation: {view:ProductView;href:string;label:string;icon:IconName}[]=[
+  {view:"dashboard",href:"/",label:"대시보드",icon:"grid"},
+  {view:"composer",href:"/composer",label:"글 작성",icon:"pen"},
+  {view:"queue",href:"/queue",label:"예약 큐",icon:"calendar"},
+  {view:"history",href:"/history",label:"게시 내역",icon:"clock"},
+  {view:"accounts",href:"/accounts",label:"Threads 계정",icon:"settings"},
+  {view:"bulk",href:"/bulk",label:"여러 글 등록",icon:"plus"},
+];
+const normalize=(value:string)=>value.trim().replace(/\s+/g," ").toLowerCase();
+const isLocked=(draft:DraftRow)=>draft.publication_status==="published"||draft.publication_status==="publishing"||!draft.publish_retryable;
+function badge(draft:DraftRow){
+  if(draft.publication_status==="published")return {text:"게시 성공",className:"success"};
+  if(draft.publication_status==="failed")return {text:"게시 실패",className:"danger"};
+  if(draft.publication_status==="publishing")return {text:"게시 중",className:"violet"};
+  return draft.scheduled_at?{text:"게시 대기",className:"warning"}:{text:draft.status==="draft"?"임시저장":"게시 준비",className:"neutral"};
+}
+function Status({draft}:{draft:DraftRow}){const value=badge(draft);return <span className={"pro-badge "+value.className}>{value.text}</span>;}
+const time=(value:string|null)=>value?scheduledDate(value):"—";
+type BulkItem={id:string;body:string;date:string;time:string};
+
+export function ProductApp({view,email,workspace,initialDrafts,initialConnection,worker,referenceTime,draftId,copyId,initialSchedule=false}:{
+  view:ProductView;email:string;workspace:DraftWorkspace;initialDrafts:DraftRow[];initialConnection:ThreadsConnection;
+  worker:Worker;referenceTime:string;draftId?:string;copyId?:string;initialSchedule?:boolean;
+}){
+  const [drafts,setDrafts]=useState(initialDrafts);
+  const [connection,setConnection]=useState(initialConnection);
+  const [workerState,setWorkerState]=useState(worker);
+  const initial=initialDrafts.find((draft)=>draft.id===(draftId??copyId));
+  const [editing,setEditing]=useState<DraftRow|null>(draftId?initial??null:null);
+  const [body,setBody]=useState(initial?.body??"");
+  const [accountId,setAccountId]=useState(initial?.selected_threads_account_id??initialConnection.account?.id??"");
+  const [date,setDate]=useState(initial?.scheduled_at?kstInput(initial.scheduled_at).slice(0,10):"");
+  const [clock,setClock]=useState(initial?.scheduled_at?kstInput(initial.scheduled_at).slice(11):"09:00");
+  const [mode,setMode]=useState<"now"|"schedule">(initialSchedule||initial?.scheduled_at?"schedule":"now");
+  const [allowDuplicate,setAllowDuplicate]=useState(false);
+  const [busy,setBusy]=useState(false);
+  const [notice,setNotice]=useState("");
+  const [error,setError]=useState("");
+  const [queueFilter,setQueueFilter]=useState("all");
+  const [historyFilter,setHistoryFilter]=useState("all");
+  const [showHidden,setShowHidden]=useState(false);
+  const [setupOpen,setSetupOpen]=useState(false);
+  const [deleteConfirmation,setDeleteConfirmation]=useState<string|null>(null);
+  const [now,setNow]=useState(referenceTime);
+  const [bulk,setBulk]=useState<BulkItem[]>([{id:"initial",body:"",date:"",time:"09:00"}]);
+  const [bulkStart,setBulkStart]=useState("");
+  const [bulkTime,setBulkTime]=useState("09:00");
+  const [bulkGap,setBulkGap]=useState(60);
+  useEffect(()=>{const timer=setInterval(()=>setNow(new Date().toISOString()),30000);return()=>clearInterval(timer);},[]);
+  const base="/api/workspaces/"+workspace.workspace.id;
+  useEffect(()=>{
+    if(!["dashboard","queue","history"].includes(view))return;
+    const controller=new AbortController();
+    const timer=setInterval(async()=>{
+      if(document.visibilityState!=="visible")return;
+      try{
+        const options={cache:"no-store" as const,credentials:"same-origin" as const,
+          signal:AbortSignal.any([controller.signal,AbortSignal.timeout(20000)])};
+        const [rows,status]=await Promise.all([fetch(base+"/drafts",options),fetch(base+"/posts",options)]);
+        if(rows.ok&&status.ok){const [data,health]=await Promise.all([rows.json(),status.json()]);
+          if(!controller.signal.aborted){setDrafts(data.drafts);setWorkerState(health.worker);setConnection(health.connection);}}
+      }catch{/* A transient read failure leaves the last successful snapshot visible. */}
+    },30000);
+    return()=>{clearInterval(timer);controller.abort();};
+  },[base,view]);
+  const account=connection.account;
+  const canPublish=!!account&&connection.configured&&!connection.error&&account.token_status!=="invalid";
+  const queue=drafts.filter((draft)=>draft.scheduled_at&&draft.publication_status!=="published")
+    .sort((a,b)=>Date.parse(a.scheduled_at!)-Date.parse(b.scheduled_at!));
+  const published=drafts.filter((draft)=>draft.publication_status==="published");
+  const queueEntries=drafts.filter((draft)=>draft.scheduled_at).sort((a,b)=>Date.parse(a.scheduled_at!)-Date.parse(b.scheduled_at!));
+  const failures=drafts.filter((draft)=>draft.publication_status==="failed");
+  const history=drafts.filter((draft)=>["published","failed"].includes(draft.publication_status))
+    .sort((a,b)=>Date.parse(b.published_at??b.publish_started_at??b.updated_at)-Date.parse(a.published_at??a.publish_started_at??a.updated_at));
+  const today=kstInput(now).slice(0,10);
+  const todayPublished=published.filter((draft)=>draft.published_at&&kstInput(draft.published_at).slice(0,10)===today).length;
+  const next=queue.find((draft)=>draft.publication_status==="unpublished");
+  const duplicates=body.trim()?drafts.filter((draft)=>draft.id!==editing?.id&&normalize(draft.body)===normalize(body)):[];
+  const locked=!!editing&&isLocked(editing);
+  const savedDrafts=drafts.filter((draft)=>!draft.scheduled_at&&draft.publication_status==="unpublished");
+  const accountLabel=account?"@"+account.username:"연결할 Threads 계정";
+  const workerFresh=workerState?.last_run_at&&Date.parse(now)-Date.parse(workerState.last_run_at)<180000;
+
+  async function request(path:string,method="GET",payload?:unknown){
+    const response=await fetch(path,{method,cache:"no-store",credentials:"same-origin",
+      ...(payload===undefined?{}:{headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)}),
+      signal:AbortSignal.timeout(path.endsWith("/publish")||path.endsWith("/posts")?115000:20000)});
+    const result=await response.json();
+    if(!response.ok){
+      if(result.draft){setEditing(result.draft);setDrafts((items)=>[result.draft,...items.filter((item)=>item.id!==result.draft.id)]);}
+      throw new Error(result.error??"요청을 완료하지 못했습니다.");
+    }return result;
+  }
+  function replaceDraft(draft:DraftRow){setDrafts((items)=>[draft,...items.filter((item)=>item.id!==draft.id)]);}
+  async function refresh(){
+    const result=await request(base+"/drafts");setDrafts(result.drafts);
+    if(editing){const draft=result.drafts.find((item:DraftRow)=>item.id===editing.id);if(draft)setEditing(draft);}
+  }
+  async function action(callback:()=>Promise<void>){
+    if(busy)return;setBusy(true);setError("");setNotice("");
+    try{await callback();}catch(failure){setError(failure instanceof Error?failure.message:"처리하지 못했습니다.");
+      try{await refresh();}catch{/* Keep the actionable error without retrying a mutation. */}}
+    finally{setBusy(false);}
+  }
+  async function save(intent:"draft"|"now"|"schedule"){
+    await action(async()=>{
+      const result=await request(base+"/posts","POST",{body,mode:intent,
+        ...(editing?{draftId:editing.id,expectedUpdatedAt:editing.updated_at}:{}),
+        scheduledAt:intent==="schedule"?kstInputToIso(date+"T"+clock):null,accountId:accountId||null,allowDuplicate});
+      replaceDraft(result.draft);setEditing(result.draft);setBody(result.draft.body);
+      setNotice(intent==="draft"?"임시저장했습니다. 나중에 이어서 작성할 수 있어요.":intent==="schedule"?"예약 큐에 등록했습니다. 지정 시간부터 자동 게시를 시도합니다.":"Threads에 게시했습니다.");
+    });
+  }
+  async function publish(draft:DraftRow){
+    await action(async()=>{const result=await request(base+"/drafts/"+draft.id+"/publish","POST",{expectedUpdatedAt:draft.updated_at});
+      replaceDraft(result.draft);setNotice("게시가 완료되었습니다. History에서 결과를 확인하세요.");});
+  }
+  async function mutate(draft:DraftRow,kind:"cancel"|"hide"|"show"){
+    await action(async()=>{const result=await request(base+"/posts/"+draft.id,"PATCH",{action:kind,expectedUpdatedAt:draft.updated_at});
+      replaceDraft(result.draft);setNotice(kind==="cancel"?"예약을 취소했습니다. 글은 임시 글 목록에 보존됩니다.":kind==="hide"?"게시 내역을 숨겼습니다. 숨긴 내역 보기에서 복구할 수 있어요.":"게시 내역을 다시 표시합니다.");});
+  }
+  async function connect(){
+    if(!connection.configured){setSetupOpen(true);return;}
+    await action(async()=>{try{const result=await request(base+"/threads","POST",{});setConnection({...connection,account:result.account,error:""});
+      setAccountId(result.account.id);setNotice("Threads 계정을 확인했습니다. 이제 게시할 수 있어요.");}
+      catch(failure){setConnection((value)=>({...value,error:failure instanceof Error?failure.message:"계정 확인 실패"}));throw failure;}});
+  }
+  async function deleteDraft(draft:DraftRow){
+    if(deleteConfirmation!==draft.id){setDeleteConfirmation(draft.id);return;}
+    await action(async()=>{await request(base+"/drafts/"+draft.id,"DELETE",{expectedUpdatedAt:draft.updated_at});
+      setDrafts((items)=>items.filter((item)=>item.id!==draft.id));setDeleteConfirmation(null);
+      if(editing?.id===draft.id){setEditing(null);setBody("");}
+      setNotice("글을 삭제했습니다. 데이터는 복구 가능한 상태로 보관됩니다.");});
+  }
+  function distribute(){
+    try{const start=Date.parse(kstInputToIso(bulkStart+"T"+bulkTime));
+      setBulk((items)=>items.map((item,index)=>{const local=kstInput(new Date(start+index*bulkGap*60000).toISOString());
+        return {...item,date:local.slice(0,10),time:local.slice(11)};}));setError("");
+    }catch{setError("시작 날짜와 시간을 먼저 선택해 주세요.");}
+  }
+  async function saveBulk(intent:"draft"|"schedule"){
+    await action(async()=>{const result=await request(base+"/posts","POST",{posts:bulk.map((item)=>({body:item.body,mode:intent,
+      scheduledAt:intent==="schedule"?kstInputToIso(item.date+"T"+item.time):null,accountId:accountId||null,allowDuplicate}))});
+      setDrafts((items)=>[...result.drafts,...items]);setBulk([{id:crypto.randomUUID(),body:"",date:"",time:"09:00"}]);
+      setNotice(result.drafts.length+"개 글을 "+(intent==="schedule"?"예약 큐에 등록했습니다.":"임시저장했습니다."));});
+  }
+  const duplicateWarning=duplicates.length>0;
+  const invalidBody=!body.trim()||Array.from(body).length>500;
+  const title={dashboard:"오늘의 운영",composer:"새로운 이야기",queue:"예약 게시 큐",history:"게시 내역",accounts:"Threads 계정",bulk:"여러 글 한 번에"}[view];
+  const subtitle={dashboard:"계정부터 게시 결과까지, 한눈에 확인하세요.",composer:"생각을 글로 만들고, 원하는 순간에 전하세요.",queue:"예약한 시간에 맞춰 글을 차례로 게시합니다.",history:"게시 결과를 확인하고 다음 콘텐츠를 준비하세요.",accounts:"안전하게 계정을 연결하고 게시 준비를 마치세요.",bulk:"최대 30개 글을 편집하고 한 번에 예약하세요."}[view];
+
+  return <div className="pro-shell">
+    <aside className="pro-sidebar">
+      <Link href="/" className="pro-brand"><span className="pro-brand-mark">t</span><span>threads<span className="pro-brand-pro">PRO</span><small>YOUR CONTENT, ON TIME.</small></span></Link>
+      <div className="pro-workspace"><span>DUO</span><div><strong>{workspace.workspace.name}</strong><small>{workspace.members.length}명 · {workspace.role}</small></div></div>
+      <p className="pro-nav-caption">WORKSPACE</p>
+      <nav aria-label="주 메뉴">{navigation.map((item)=><Link key={item.view} href={item.href} className={"pro-nav "+(view===item.view?"active":"")}>
+        <Icon name={item.icon}/><span>{item.label}</span>{item.view==="queue"&&queue.length>0&&<b>{queue.length}</b>}
+      </Link>)}</nav>
+      <div className="pro-sidebar-bottom"><div className="pro-sidebar-tip"><Icon name="sparkle" size={19}/><strong>꾸준함을 더 쉽게.</strong><p>좋은 글을 준비하세요.<br/>게시 시간은 큐에 맡기세요.</p></div>
+        <a href="/MASTER_PLAN.html" target="_blank" rel="noreferrer" className="pro-plan"><Icon name="book" size={16}/>프로젝트 마스터플랜</a></div>
+    </aside>
+    <div className="pro-main"><header className="pro-topbar"><span>Workspace <i>/</i> {navigation.find((item)=>item.view===view)?.label}</span>
+      <span className={"pro-badge "+(canPublish?"success":"warning")}>{canPublish?"게시 준비 완료":"Meta 계정 연결 필요"}</span></header>
+      <SessionControls email={email}/>
+      <main className="pro-content"><div className="pro-page-heading"><div><div className="pro-eyebrow">THREADS, IN SYNC</div><h1>{title}<span>.</span></h1><p>{subtitle}</p></div>
+        {view!=="composer"&&view!=="bulk"&&<div className="pro-heading-actions"><Link className="pro-button ghost" href="/composer?mode=schedule"><Icon name="calendar" size={16}/>예약 게시</Link>
+          <Link className="pro-button primary" href="/composer"><Icon name="plus" size={16}/>새 글 작성</Link></div>}</div>
+      {error&&<div className="pro-feedback error" role="alert"><Icon name="warning" size={18}/>{error}</div>}
+      {notice&&<div className="pro-feedback success" role="status"><Icon name="check" size={18}/>{notice}</div>}
+      {!canPublish&&view!=="accounts"&&<div className="pro-connection-banner"><div><strong>Meta 계정 연결이 필요해요.</strong><p>글 작성과 예약은 지금 시작할 수 있습니다. 실제 게시는 계정 연결 후 실행됩니다.</p></div><Link href="/accounts">계정 연결 <Icon name="arrow" size={16}/></Link></div>}
+
+      {view==="dashboard"&&<>
+        <section className="pro-stats" aria-label="운영 현황">{([
+          ["오늘 게시",todayPublished,"한국 시간 오늘", "pen"], ["예약 글",queue.filter((draft)=>draft.publication_status==="unpublished").length,"게시를 기다리는 글","calendar"],
+          ["게시 성공",published.length,"전체 성공 내역","check"],["게시 실패",failures.length,"확인이 필요한 글","warning"],
+        ] as const).map(([label,value,caption,icon])=><article key={label} className={"pro-stat "+(icon==="warning"&&value?"has-error":"")}><div><span>{label}</span><Icon name={icon} size={20}/></div><strong>{value}<small>건</small></strong><p>{caption}</p></article>)}</section>
+        {failures.length>0&&<div className="pro-feedback error"><Icon name="warning" size={18}/><span>{failures.length}개 글의 게시가 실패했습니다.</span><Link href="/history">실패 내역 확인</Link></div>}
+        <div className="pro-overview-grid"><section className="pro-card pro-next"><span className="pro-eyebrow">UP NEXT</span><h2>다음 예약 게시</h2>
+          <strong className="pro-next-time">{next?time(next.scheduled_at):"다음 이야기를 준비해 보세요"}</strong>
+          <p>{next?next.body:"아직 예약된 글이 없습니다. 글을 작성하고 원하는 날짜에 예약하세요."}</p>
+          <div className="pro-next-footer"><span>{accountLabel}</span><Link href={next?"/queue":"/composer"}>{next?"큐 관리":"글 작성"}<Icon name="arrow" size={15}/></Link></div></section>
+          <section className="pro-card"><div className="pro-card-title"><h2>계정 & 자동 게시</h2><Icon name="settings" size={18}/></div>
+            <div className="pro-account-summary"><span className="pro-account-avatar">@</span><div><strong>{account?"@"+account.username:"Threads 계정 연결"}</strong><p>{canPublish?"텍스트 게시 가능":"Meta 계정 연결 필요"}</p></div></div>
+            <div className="pro-detail-row"><span>예약 실행</span><span>{canPublish?(workerFresh?"1분마다 큐 확인":"실행기 상태 확인 필요"):"토큰 연결 대기"}</span></div>
+            <div className="pro-detail-row"><span>최근 큐 확인</span><span>{time(workerState?.last_run_at??null)}</span></div><Link className="pro-text-link" href="/accounts">계정 관리 <Icon name="arrow" size={14}/></Link></section></div>
+        <section className="pro-card"><div className="pro-card-title"><h2>최근 게시 <span>5개</span></h2><Link href="/history">전체 보기 <Icon name="arrow" size={14}/></Link></div>
+          {history.slice(0,5).map((draft)=><div className="pro-recent-row" key={draft.id}><Status draft={draft}/><p>{draft.body}</p><time>{time(draft.published_at??draft.publish_started_at)}</time></div>)}
+          {!history.length&&<div className="pro-empty"><Icon name="pen" size={28}/><h3>첫 게시가 여기에 기록됩니다.</h3><p>작성한 글을 게시하면 성공과 실패를 바로 확인할 수 있어요.</p><Link href="/composer">첫 글 작성 <Icon name="arrow" size={14}/></Link></div>}</section>
+      </>}
+
+      {view==="composer"&&<div className="pro-composer-grid"><div>
+        <section className="pro-card"><div className="pro-card-title"><h2>{editing?"글 편집":"글 작성"}</h2>{editing&&<Status draft={editing}/>}</div>
+          {(draftId&&!initial)&&<p className="pro-feedback error">이 글을 찾을 수 없습니다. 새 글로 작성할 수 있습니다.</p>}
+          <label className="pro-label" htmlFor="post-account">게시 계정</label><select id="post-account" value={accountId} onChange={(event)=>setAccountId(event.target.value)} disabled={busy||locked}>
+            <option value="">{account?"기본 Threads 계정":"계정 연결 후 기본 계정 사용"}</option>{account&&<option value={account.id}>@{account.username}</option>}</select>
+          <label className="pro-label" htmlFor="post-body">본문</label><textarea id="post-body" rows={11} value={body} disabled={busy||locked}
+            placeholder="어떤 이야기를 나누고 싶나요?" onChange={(event)=>{setBody(event.target.value);setAllowDuplicate(false);}}/>
+          <div className={"pro-character-count "+(Array.from(body).length>500?"over":"")}><span>텍스트 게시</span><span>{Array.from(body).length} / 500자</span></div>
+          {duplicateWarning&&<div className="pro-duplicate"><strong><Icon name="warning" size={15}/>같은 본문의 글이 {duplicates.length}개 있어요.</strong>
+            <label><input type="checkbox" checked={allowDuplicate} onChange={(event)=>setAllowDuplicate(event.target.checked)}/>중복 내용을 확인했으며 새 글로 등록합니다.</label></div>}
+          <div className="pro-mode-tabs"><button type="button" className={mode==="now"?"selected":""} onClick={()=>setMode("now")}>즉시 게시</button>
+            <button type="button" className={mode==="schedule"?"selected":""} onClick={()=>setMode("schedule")}>예약 게시</button></div>
+          {mode==="schedule"&&<div className="pro-date-fields"><div><label htmlFor="post-date">예약 날짜 (한국 시간)</label><input id="post-date" type="date" min={today} value={date} onChange={(event)=>setDate(event.target.value)} disabled={busy||locked}/></div>
+            <div><label htmlFor="post-time">시간</label><input id="post-time" type="time" value={clock} onChange={(event)=>setClock(event.target.value)} disabled={busy||locked}/></div></div>}
+          {mode==="schedule"&&<p className="pro-help">지정 시간부터 1분 간격으로 자동 게시를 시도합니다. 계정 연결 전에는 큐에서 대기합니다.</p>}
+          {locked&&<p className="pro-help">게시 중이거나 결과 확인이 필요한 글입니다. 내용 변경과 재게시가 잠겨 있습니다.</p>}
+          <div className="pro-composer-actions"><button className="pro-button ghost" disabled={busy||locked||invalidBody||(duplicateWarning&&!allowDuplicate)} onClick={()=>save("draft")}>임시저장</button>
+            <button className="pro-button primary" disabled={busy||locked||invalidBody||(duplicateWarning&&!allowDuplicate)||(mode==="now"&&!canPublish)||(mode==="schedule"&&!date)} onClick={()=>save(mode)}>
+              {busy?"처리 중…":mode==="now"?"지금 게시":"예약 등록"}<Icon name={mode==="now"?"arrow":"calendar"} size={16}/></button></div>
+          {notice&&editing&&<Link className="pro-text-link" href={editing.publication_status==="published"?"/history":editing.scheduled_at?"/queue":"/composer"}>저장된 글 확인 <Icon name="arrow" size={14}/></Link>}
+        </section>
+        {editing&&<section className="pro-card"><DraftApprovalHistory workspaceId={workspace.workspace.id} draftId={editing.id} key={editing.id+editing.updated_at}
+          actorName={(id)=>workspace.members.find((member)=>member.profile_id===id)?.profiles?.display_name??"워크스페이스 멤버"}/></section>}
+        {savedDrafts.length>0&&<section className="pro-card"><div className="pro-card-title"><h2>이어서 작성하기</h2><span>{savedDrafts.length}개</span></div>{savedDrafts.map((draft)=><div className="pro-saved-row" key={draft.id}>
+          <Link className="pro-draft-link" href={"/composer?draft="+draft.id}><p>{draft.body||draft.topic}</p><Icon name="arrow" size={14}/></Link>
+          <button disabled={busy} className="pro-draft-delete" onClick={()=>deleteDraft(draft)}>{deleteConfirmation===draft.id?"삭제 확인":"삭제"}</button>
+          {deleteConfirmation===draft.id&&<button className="pro-draft-delete" onClick={()=>setDeleteConfirmation(null)}>유지</button>}</div>)}</section>}
+      </div><aside><section className="pro-card pro-preview"><span className="pro-eyebrow">LIVE PREVIEW</span><h2>게시물 미리보기</h2><div className="pro-preview-profile"><span className="pro-account-avatar">@</span><div><strong>{account?.username??"your_account"}</strong><small>방금 전</small></div><b>···</b></div>
+        <p className={"pro-preview-body "+(!body?"placeholder":"")}>{body||"작성한 글이 이곳에 미리 표시됩니다. 줄바꿈도 그대로 유지돼요."}</p><div className="pro-preview-icons">♡　☏　↻　↗</div></section>
+        <div className="pro-writing-tip"><Icon name="sparkle" size={18}/><h3>한 가지 이야기에 집중하세요.</h3><p>첫 문장은 짧게, 핵심은 분명하게.<br/>여러 이야기는 여러 글로 나눠보세요.</p><Link href="/bulk">여러 글 등록 <Icon name="arrow" size={14}/></Link></div></aside></div>}
+
+      {view==="queue"&&<>
+        <div className="pro-queue-summary"><span><b>{queue.length}</b>개 글이 큐에 있어요</span><span className={"pro-badge "+(canPublish&&workerFresh?"success":"warning")}>{canPublish?(workerFresh?"자동 게시 운영 중":"실행기 상태 확인 필요"):"계정 연결 후 자동 게시"}</span>
+          <button disabled={busy} onClick={()=>action(async()=>{await refresh();setNotice("최신 큐를 불러왔습니다.");})}>새로고침</button></div>
+        <section className="pro-card"><div className="pro-tabs">{[["all","전체"],["unpublished","게시 대기"],["publishing","게시 중"],["published","성공"],["failed","실패"]].map(([key,label])=><button key={key} className={queueFilter===key?"selected":""} onClick={()=>setQueueFilter(key)}>{label}</button>)}</div>
+          <div className="pro-table-wrap"><table className="pro-table"><thead><tr><th>게시 예정</th><th>계정 / 본문</th><th>상태</th><th>관리</th></tr></thead><tbody>
+            {queueEntries.filter((draft)=>queueFilter==="all"||draft.publication_status===queueFilter).map((draft)=><tr key={draft.id}><td><strong>{time(draft.scheduled_at)}</strong><small>KST{draft.publication_status==="unpublished"&&Date.parse(draft.scheduled_at!)<Date.parse(now)?" · 실행 대기":""}</small></td>
+              <td><small>{accountLabel}</small><p>{draft.body}</p>{draft.publish_error&&<span className="pro-inline-error">{draft.publish_error}</span>}</td><td><Status draft={draft}/><small>{draft.auto_publish?"자동 게시":"수동 예약"}</small></td>
+              <td><div className="pro-row-actions"><Link aria-disabled={isLocked(draft)} href={"/composer?draft="+draft.id}>수정</Link><button disabled={busy||isLocked(draft)} onClick={()=>mutate(draft,"cancel")}>취소</button>
+                <button className="accent" disabled={busy||isLocked(draft)||!canPublish} onClick={()=>publish(draft)}>즉시 게시</button></div></td></tr>)}
+          </tbody></table></div>
+          {!queueEntries.length&&<div className="pro-empty"><Icon name="calendar" size={30}/><h3>예약한 글이 아직 없어요.</h3><p>글을 작성하고 게시할 날짜와 시간을 지정해 보세요.</p><Link href="/composer?mode=schedule">첫 예약 만들기 <Icon name="arrow" size={14}/></Link></div>}
+        </section></>}
+
+      {view==="history"&&<section className="pro-card"><div className="pro-card-title"><div className="pro-tabs">{[["all","전체"],["published","성공"],["failed","실패"]].map(([key,label])=><button key={key} className={historyFilter===key?"selected":""} onClick={()=>setHistoryFilter(key)}>{label}</button>)}</div>
+        <label className="pro-check-label"><input type="checkbox" checked={showHidden} onChange={(event)=>setShowHidden(event.target.checked)}/>숨긴 내역 보기</label></div>
+        {history.filter((draft)=>(showHidden||!draft.history_hidden_at)&&(historyFilter==="all"||draft.publication_status===historyFilter)).map((draft)=><article className={"pro-history-item "+(draft.history_hidden_at?"hidden-item":"")} key={draft.id}>
+          <div className="pro-history-top"><div><Status draft={draft}/><span>{accountLabel}</span>{draft.history_hidden_at&&<small>숨김</small>}</div><time>{time(draft.published_at??draft.publish_started_at??draft.updated_at)} KST</time></div>
+          <p className="pro-history-body">{draft.body}</p>{draft.threads_post_id&&<p className="pro-post-id">Threads Post ID <code>{draft.threads_post_id}</code></p>}
+          {draft.publish_error&&<div className="pro-feedback error">{draft.publish_error}</div>}
+          {!draft.publish_retryable&&draft.publication_status==="failed"&&<p className="pro-help">결과가 불확실해 자동 재시도를 차단했습니다. Threads에서 실제 게시 여부를 확인해야 합니다.</p>}
+          <div className="pro-row-actions">{draft.publication_status==="failed"&&<button className="accent" disabled={busy||!draft.publish_retryable||!canPublish} onClick={()=>publish(draft)}>재시도</button>}
+            {draft.publication_status==="failed"&&draft.publish_retryable&&<Link href={"/composer?draft="+draft.id}>수정 후 재시도</Link>}
+            <Link href={"/composer?copy="+draft.id}>새 글로 다시 게시</Link><button onClick={()=>action(async()=>{await navigator.clipboard.writeText(draft.body);setNotice("본문을 복사했습니다.");})}>복사</button>
+            <button disabled={busy} onClick={()=>mutate(draft,draft.history_hidden_at?"show":"hide")}>{draft.history_hidden_at?"다시 표시":"숨김"}</button></div>
+        </article>)}
+        {!history.filter((draft)=>showHidden||!draft.history_hidden_at).length&&<div className="pro-empty"><Icon name="clock" size={30}/><h3>게시 내역이 아직 없어요.</h3><p>게시가 끝나면 성공·실패와 Threads ID를 이곳에서 확인할 수 있습니다.</p></div>}
+      </section>}
+
+      {view==="accounts"&&<>
+        <section className="pro-card pro-account-card"><div className="pro-account-card-header"><span className="pro-account-avatar large">@</span><div><h2>{account?"@"+account.username:"Threads 계정을 연결하세요"}</h2><p>{account?"이 workspace의 게시 계정":"게시할 계정과 안전한 서버 토큰을 준비하세요."}</p></div><span className={"pro-badge "+(canPublish?"success":"warning")}>{canPublish?"연결됨":"Meta 계정 연결 필요"}</span></div>
+          <div className="pro-account-details"><div><span>연결 상태</span><strong>{account?"계정 정보 저장됨":"미연결"}</strong></div><div><span>토큰 상태</span><strong>{connection.configured?(account?.token_status==="invalid"?"확인 필요":"서버 설정됨"):"토큰 설정 필요"}</strong></div>
+            <div><span>마지막 확인</span><strong>{time(account?.last_checked_at??account?.connected_at??null)}</strong></div><div><span>게시 가능 여부</span><strong>{canPublish?"즉시·예약 게시 가능":"연결 후 게시 가능"}</strong></div></div>
+          {connection.error&&<p className="pro-feedback error">{connection.error}</p>}
+          <div className="pro-composer-actions"><button className="pro-button primary" disabled={busy||workspace.role!=="owner"} onClick={connect}>{busy?"확인 중…":account?"계정 연결 확인":"Threads 계정 연결"}<Icon name="arrow" size={16}/></button>
+            <button className="pro-button ghost" onClick={()=>setSetupOpen(!setupOpen)}>연결 방법 보기</button></div>
+          {workspace.role!=="owner"&&<p className="pro-help">계정 연결은 workspace owner가 진행할 수 있습니다.</p>}
+        </section>
+        {(setupOpen||!canPublish)&&<section className="pro-card pro-setup"><h2>3단계로 게시 준비하기</h2><ol><li><strong>Meta Threads 앱 준비</strong><p>Meta 개발자 Dashboard에서 Threads API 앱과 게시할 계정을 준비하세요.</p><a href="https://developers.facebook.com/apps/" target="_blank" rel="noreferrer">Meta 개발자 Dashboard ↗</a></li>
+          <li><strong>서버 토큰 설정</strong><p>threads_basic와 threads_content_publish 권한의 사용자 토큰을 Vercel Production 환경변수에 설정하세요. 토큰은 브라우저에 입력하거나 채팅으로 공유하지 않습니다.</p></li>
+          <li><strong>계정 확인 후 게시 시작</strong><p>환경변수 적용 후 위의 계정 연결 버튼을 누르세요. 큐에서 기다리는 예약 글도 자동 실행할 수 있습니다.</p></li></ol>
+          <p className="pro-help">작성한 글과 예약은 계정 연결 전에도 저장됩니다.</p></section>}
+      </>}
+
+      {view==="bulk"&&<>
+        <section className="pro-card"><div className="pro-card-title"><h2>일괄 예약 설정</h2><span>{bulk.length} / 30개</span></div>
+          <div className="pro-bulk-settings"><div><label htmlFor="bulk-start">시작 날짜 (KST)</label><input id="bulk-start" type="date" min={today} value={bulkStart} onChange={(event)=>setBulkStart(event.target.value)}/></div>
+            <div><label htmlFor="bulk-clock">시작 시간</label><input id="bulk-clock" type="time" value={bulkTime} onChange={(event)=>setBulkTime(event.target.value)}/></div>
+            <div><label htmlFor="bulk-gap">게시 간격</label><select id="bulk-gap" value={bulkGap} onChange={(event)=>setBulkGap(Number(event.target.value))}><option value={30}>30분</option><option value={60}>1시간</option><option value={120}>2시간</option><option value={1440}>하루</option></select></div>
+            <button className="pro-button ghost" disabled={busy||!bulkStart} onClick={distribute}>시간 일괄 지정</button></div>
+          <div className="pro-bulk-toolbar"><button onClick={()=>setBulk((items)=>items.length>=30?items:[...items,{id:crypto.randomUUID(),body:"",date:"",time:"09:00"}])} disabled={busy||bulk.length>=30}>+ 글 추가</button>
+            <button disabled={busy||bulk.length>=30} onClick={()=>setBulk((items)=>[...items,...Array.from({length:Math.min(10,30-items.length)},()=>({id:crypto.randomUUID(),body:"",date:"",time:"09:00"}))])}>+ 빈 글 10개</button><span>각 글을 편집한 뒤 전체 저장 또는 예약하세요.</span></div>
+        </section>
+        <div className="pro-bulk-grid">{bulk.map((item,index)=><section className="pro-card pro-bulk-item" key={item.id}><div className="pro-card-title"><h2><span className="pro-number">{index+1}</span>글 {index+1}</h2>
+          <button aria-label={"글 "+(index+1)+" 제거"} disabled={busy||bulk.length===1} onClick={()=>setBulk((items)=>items.filter((row)=>row.id!==item.id))}>제거</button></div>
+          <label className="pro-sr-only" htmlFor={"bulk-body-"+item.id}>글 {index+1} 본문</label><textarea id={"bulk-body-"+item.id} rows={5} value={item.body} placeholder="본문을 작성하세요." disabled={busy}
+            onChange={(event)=>setBulk((items)=>items.map((row)=>row.id===item.id?{...row,body:event.target.value}:row))}/><div className="pro-character-count"><span>텍스트</span><span>{Array.from(item.body).length} / 500자</span></div>
+          <div className="pro-date-fields"><div><label htmlFor={"bulk-date-"+item.id}>글 {index+1} 예약 날짜</label><input id={"bulk-date-"+item.id} type="date" value={item.date} min={today} onChange={(event)=>setBulk((items)=>items.map((row)=>row.id===item.id?{...row,date:event.target.value}:row))}/></div>
+            <div><label htmlFor={"bulk-time-"+item.id}>시간</label><input id={"bulk-time-"+item.id} type="time" value={item.time} onChange={(event)=>setBulk((items)=>items.map((row)=>row.id===item.id?{...row,time:event.target.value}:row))}/></div></div></section>)}</div>
+        <div className="pro-bulk-save"><label className="pro-check-label"><input type="checkbox" checked={allowDuplicate} onChange={(event)=>setAllowDuplicate(event.target.checked)}/>중복 내용을 확인하고 등록</label>
+          <button className="pro-button ghost" disabled={busy||bulk.some((item)=>!item.body.trim()||Array.from(item.body).length>500)} onClick={()=>saveBulk("draft")}>전체 임시저장</button>
+          <button className="pro-button primary" disabled={busy||bulk.some((item)=>!item.body.trim()||Array.from(item.body).length>500||!item.date)} onClick={()=>saveBulk("schedule")}>{busy?"등록 중…":"전체 예약"}<Icon name="calendar" size={16}/></button></div>
+      </>}
+      <footer className="pro-footer"><span>Threads Duo OS · Built for your next story.</span><span>한국 시간 KST · {workspace.members.length}명의 workspace</span></footer>
+      </main>
+    </div>
+  </div>;
+}

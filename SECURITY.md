@@ -1,5 +1,11 @@
 # SECURITY
 
+## Threads Pro P0 추가 경계
+
+새 페이지는 기존 서버 인증/workspace 조회를 재사용한다. 사용자 작성 요청은 same-origin JSON과 기존 멤버 RLS/버전 잠금을 유지한다. 신규 일괄 등록만 최대 128KB, 30개, 각 500자로 제한하며 기존 단일 CRUD의 32KB 한도는 유지한다. 계정/workspace 복합 FK로 다른 게시 계정 연결을 거절한다. 중복 본문 검사는 workspace별 transaction lock 안에서 처리하며 사용자가 중복을 명시적으로 확인할 수 있다.
+
+예약 실행기의 별도 capability는 workspace 한 개의 due-only claim 및 해당 게시 시도 결과 저장으로 제한한다. Auth 우회 세션이나 service-role key를 사용하지 않는다. Cron은 private dispatch 함수와 암호화 Vault를 사용하도록 준비하며 기존 인증키의 Production 실행기 전송은 명시적 승인 후 설정한다. Meta 토큰은 계속 Vercel의 server 환경변수에서만 읽는다. 브라우저에는 토큰 입력란/비밀값/worker key를 제공하지 않는다. 숨김은 결과를 삭제하지 않으며 재표시 가능하다. 불확실한 게시 결과는 계속 재시도 차단한다. 아래 기존 보안 원칙은 보존한다.
+
 Threads 게시 추가 경계: access token과 게시 결과 쓰기용 secret은 server-only 모듈의 환경변수에서만 읽고 NEXT_PUBLIC prefix를 사용하지 않는다. Supabase service-role/secret key는 사용하지 않는다. 빈 search_path의 private definer가 현재 auth.uid 멤버십과 서버 secret digest를 모두 검사하고 public invoker wrapper가 좁은 게시 연산만 제공한다. 브라우저는 게시 결과를 위조하거나 계정 metadata를 직접 변경할 수 없다. Bearer header로 Meta에 토큰을 전달하며 URL/응답/로그에 토큰을 포함하지 않고 외부 redirect를 거절한다. provider 오류 원문을 저장하지 않는다. 원자적 DB claim으로 중복 게시를 막고 실제 게시 응답이 불확실하면 수동 재시도도 차단한다. 서버 env 자격증명이 없는 동안 실제 외부 게시를 하지 않는다. 기존 보안 기록은 아래 보존한다.
 
 ## Scheduling 1단계 추가 경계
