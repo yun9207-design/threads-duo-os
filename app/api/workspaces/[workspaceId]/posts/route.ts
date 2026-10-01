@@ -9,7 +9,7 @@ export async function GET(_request:Request,context:Context){
   try{const {workspaceId}=await context.params;
     const [worker,connection]=await Promise.all([queueWorkerStatus(workspaceId),threadsConnection(workspaceId)]);
     return draftsResponse({worker,connection});
-  }catch(error){return draftsErrorResponse(error);}
+  }catch(error){const failure=publishingFailure(error);return failure?draftsResponse({error:failure.error},failure.status):draftsErrorResponse(error);}
 }
 export async function POST(request:Request,context:Context){
   try{

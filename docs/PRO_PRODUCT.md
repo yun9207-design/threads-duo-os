@@ -35,6 +35,12 @@ Meta 토큰이 없으면 실행기는 blocked 상태를 기록하고 claim하지
 
 환경변수 적용 후 owner가 Accounts에서 계정 연결을 확인한다. Meta access token이 준비되지 않은 현재 상태에서 외부 게시 성공을 주장하지 않는다. Cron의 기존 인증키 전송 설정은 자동 승인 검토가 별도 승인을 요구해 승인 대기 중이다.
 
+Cron 설치 SQL은 `supabase/pending/queue_dispatch.sql`에 준비되어 있으며 아직 적용하지 않았다. 실제 토큰과 이 설정이 준비되기 전에는 **작성/저장/예약/수정/취소 화면만 사용 가능하며 시간에 따른 자동 외부 게시를 실행하지 않는다.**
+
+## Production 배포
+
+P0 제품 화면을 main에 push했고 Vercel Production 배포가 완료됐다. [Production](https://threads-duo-os.vercel.app/)에서 기존 계정으로 사용한다. 신규 페이지와 stylesheet의 배포를 자동으로 확인했으며 추가 로그인/A-B 검사는 하지 않았다. 새 상태 조회 API의 인증 오류 매핑만 smoke 결과에 맞춰 보완했다. lint/typecheck/Production build가 통과했다.
+
 ## 이번 확인
 
 `node scripts/test-pro-product.mjs`는 새 제품 저장/편집/중복 확인, 일괄 예약의 원자성, 큐 수정/취소/명시적 재예약, 즉시 게시의 기존 엔진 연결, due-only worker와 결과 저장, History 숨김/복구를 격리 Postgres에서 확인한다. 실제 Supabase의 새 저장 RPC도 transaction smoke로 확인하고 rollback했다. 기존 Auth/A-B/RLS 전체 검사는 반복하지 않았다.
