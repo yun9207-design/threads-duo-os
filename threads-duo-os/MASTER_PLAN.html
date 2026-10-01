@@ -1,0 +1,94 @@
+<!doctype html><html lang='ko'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Threads Duo OS</title><style>
+:root{--bg:#071018;--panel:#0d1824;--line:#23384c;--text:#eef7ff;--muted:#9eb4c7;--accent:#72e6ff;--good:#66e3a4;--warn:#ffce67;--bad:#ff7c8f}
+*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,"Noto Sans KR",sans-serif;background:radial-gradient(circle at 20% 0%,#112d42 0,#071018 36%);color:var(--text)}
+.wrap{max-width:1320px;margin:auto;padding:24px}.hero{padding:34px;border:1px solid var(--line);border-radius:26px;background:linear-gradient(135deg,rgba(114,230,255,.08),rgba(167,139,250,.07))}
+.kicker{font-size:12px;font-weight:900;letter-spacing:.15em;color:var(--accent)}h1{font-size:clamp(36px,6vw,66px);margin:8px 0}h2{font-size:28px}.hero p,.muted,.card p,.card li{color:var(--muted);line-height:1.75}
+.pill{display:inline-block;border:1px solid #31536c;background:#0a2131;padding:6px 10px;border-radius:999px;margin:3px;font-size:12px}
+.tabs{display:flex;gap:8px;overflow:auto;position:sticky;top:0;z-index:10;padding:12px 0;background:rgba(7,16,24,.94);backdrop-filter:blur(12px)}
+.tabbtn{white-space:nowrap;border:1px solid var(--line);background:#0c1926;color:#d8efff;padding:10px 13px;border-radius:999px;cursor:pointer}.tabbtn.active{background:#e2faff;color:#071018;font-weight:900}
+.pane{display:none}.pane.active{display:block}.section{margin-top:24px}.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:16px}.card{grid-column:span 4;padding:18px;border:1px solid var(--line);border-radius:18px;background:rgba(13,24,36,.92)}.card.wide{grid-column:span 6}.card.full{grid-column:1/-1}
+.flow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.node{padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:#091824}.arrow{color:#7390a5}
+.mock{background:#eef7fb;color:#112433;border-radius:22px;padding:18px;min-height:420px}.mock .top{display:flex;justify-content:space-between;border-bottom:1px solid #ccdde6;padding-bottom:12px}.mock .mgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0}.mock .box,.mock .queue{background:white;border:1px solid #d5e4ec;border-radius:14px;padding:13px}.mock textarea{width:100%;padding:10px;border:1px solid #c5d4dd;border-radius:10px}.mock button{border:0;background:#1769ef;color:white;padding:10px 13px;border-radius:10px;font-weight:800;cursor:pointer}.result{display:none;background:#e7f2ff;padding:12px;border-radius:12px;margin-top:10px}
+table{width:100%;border-collapse:collapse;min-width:760px}th,td{padding:12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{color:#a6edff}.tablewrap{overflow:auto}
+.code{white-space:pre-wrap;background:#04101a;border:1px solid var(--line);padding:16px;border-radius:14px;color:#ccecff;overflow:auto;line-height:1.6}
+.prompt{width:100%;min-height:420px;background:#04101a;color:#d9f5ff;border:1px solid #2b5069;border-radius:14px;padding:16px;line-height:1.6}.copy{border:0;border-radius:10px;background:#4fbce8;color:white;padding:11px 15px;font-weight:900;cursor:pointer}
+.callout{border-left:4px solid var(--warn);padding:12px 14px;background:rgba(255,206,103,.06)}.good{color:var(--good)}.warn{color:var(--warn)}.bad{color:var(--bad)}.footer{text-align:center;color:#688198;padding:36px 0}
+@media(max-width:900px){.card,.card.wide{grid-column:1/-1}.mock .mgrid{grid-template-columns:1fr 1fr}.wrap{padding:14px}}@media(max-width:550px){.mock .mgrid{grid-template-columns:1fr}}
+</style></head><body><div class='wrap'><section class='hero'><div class='kicker'>PRIVATE TWO-PERSON THREADS OPERATING SYSTEM</div><h1>Threads Duo OS</h1><h2>프로젝트 마스터플랜</h2><p>두 사람이 여러 Threads 계정을 운영하면서 콘텐츠 생성, 승인, 예약, 공식 API 게시, 성과분석을 한 곳에서 처리하는 비공개 웹앱.</p><span class='pill'>2-user</span><span class='pill'>Next.js</span><span class='pill'>Supabase</span><span class='pill'>Threads API</span><span class='pill'>AI</span></section><div class='tabs'><button class='tabbtn' onclick="showTab('01')">01 · 전략</button><button class='tabbtn' onclick="showTab('02')">02 · 벤치마크</button><button class='tabbtn' onclick="showTab('03')">03 · 흐름</button><button class='tabbtn' onclick="showTab('04')">04 · 화면</button><button class='tabbtn' onclick="showTab('05')">05 · AI 엔진</button><button class='tabbtn' onclick="showTab('06')">06 · 승인·예약</button><button class='tabbtn' onclick="showTab('07')">07 · Threads API</button><button class='tabbtn' onclick="showTab('08')">08 · 성과</button><button class='tabbtn' onclick="showTab('09')">09 · DB</button><button class='tabbtn' onclick="showTab('10')">10 · 백엔드</button><button class='tabbtn' onclick="showTab('11')">11 · 보안</button><button class='tabbtn' onclick="showTab('12')">12 · MVP</button><button class='tabbtn' onclick="showTab('13')">13 · 로드맵</button><button class='tabbtn' onclick="showTab('14')">14 · Claude/Codex</button><button class='tabbtn' onclick="showTab('15')">15 · KPI</button><button class='tabbtn' onclick="showTab('16')">16 · 출처</button></div><section id='pane-01' class='pane'><div class='section grid'><div class='card wide'><div class='kicker'>PRODUCT THESIS</div><h2>둘이 쓰는 Threads 운영체제</h2><p>AI 글쓰기 도구가 아니라 생성→승인→예약→공식 API 게시→성과학습의 반복 루프를 한 화면에서 운영한다.</p></div><div class='card wide'><h3>버릴 복잡성</h3><p>Electron 설치, 체험판, 라이선스, Chrome 쿠키 복사, Playwright 중심 게시, 과도한 설정.</p></div><div class='card full'><h3>핵심 루프</h3><div class='flow'><span class='node'>아이디어</span><span class='arrow'>→</span><span class='node'>AI 5안</span><span class='arrow'>→</span><span class='node'>사람 승인</span><span class='arrow'>→</span><span class='node'>예약</span><span class='arrow'>→</span><span class='node'>Threads API</span><span class='arrow'>→</span><span class='node'>Insights</span><span class='arrow'>→</span><span class='node'>다음 생성</span></div></div></div></section><section id='pane-02' class='pane'><div class='section grid'><div class='card wide'><h3 class='good'>가져올 것</h3><ul><li>수집→생성→검수→게시→측정 루프</li><li>예약 큐</li><li>다계정</li><li>성과 피드백</li></ul></div><div class='card wide'><h3 class='bad'>버릴 것</h3><ul><li>설치형 Electron</li><li>Chrome 쿠키 복사</li><li>Playwright 중심 게시</li><li>상용 라이선스/체험판</li></ul></div><div class='card full tablewrap'><table><tr><th>기존</th><th>새 구조</th><th>이유</th></tr><tr><td>Electron</td><td>웹앱/PWA</td><td>PC·Mac·모바일 공용</td></tr><tr><td>로컬</td><td>Supabase 공유DB</td><td>2인 협업</td></tr><tr><td>생성 중심</td><td>성과학습 중심</td><td>시간이 갈수록 개인화</td></tr></table></div></div></section><section id='pane-03' class='pane'><div class='section grid'><div class='card'><h3>① Today</h3><p>예약·승인·오류 확인.</p></div><div class='card'><h3>② Studio</h3><p>주제/상품→AI 5안.</p></div><div class='card'><h3>③ Review</h3><p>수정·승인·보류.</p></div><div class='card'><h3>④ Schedule</h3><p>계정과 시간 지정.</p></div><div class='card'><h3>⑤ Publish</h3><p>공식 API 게시.</p></div><div class='card'><h3>⑥ Learn</h3><p>Insights로 다음 생성 개선.</p></div></div><div class='section callout'>처음 2~4주는 완전자동 대신 사람 승인을 유지해 실제 스타일 데이터를 모은다.</div></section><section id='pane-04' class='pane'><div class='section'><h2>핵심 화면 프로토타입</h2><div class='mock'><div class='top'><b>Threads Duo OS</b><span>yun ▾ | 동생 ▾</span></div><div class='mgrid'><div class='box'><b>오늘 예약</b><h2>8</h2></div><div class='box'><b>승인대기</b><h2>3</h2></div><div class='box'><b>게시완료</b><h2>4</h2></div><div class='box'><b>오류</b><h2 style='color:#c33'>0</h2></div></div><textarea rows='3'>RTX 5060 가격대비 성능에 대한 실제 고민글</textarea><br><br><button onclick="document.getElementById('demo').style.display='block'">✨ 글 5개 만들기</button><div id='demo' class='result'><b>AI 생성 완료</b><p>① 질문형 — 5060과 5070, 실제로 어디에 돈을 쓰는 게 맞을까요?</p><p>② 경험형 — 이번 PC 조립에서 가장 오래 고민한 게 그래픽카드였습니다.</p><p>③ 비교형 — 5060은 싸서 좋은 게 아니라 사용처가 맞아야 좋은 카드 같습니다.</p></div><div class='queue' style='margin-top:12px'><p>10:30 · 계정 A · 무선마이크 비교 · ✅ 승인</p><p>12:40 · 계정 B · 녹음실 운영 · 🟡 검토</p><p>15:30 · 계정 A · SSD 선택팁 · ⏱ 예약</p></div></div></div></section><section id='pane-05' class='pane'><div class='section grid'><div class='card'><h3>Style Profile</h3><p>나/동생 각각 문장길이·이모지·질문형 마무리·광고톤을 저장.</p></div><div class='card'><h3>5 Variants</h3><p>정보형·질문형·경험형·비교형·대화형.</p></div><div class='card'><h3>Duplicate Guard</h3><p>과거 글과 유사도 비교 후 경고.</p></div><div class='card full'><pre class='code'>{ "variants": [{"type":"question","text":"...","hook_score":82}], "duplicate_risk":0.18, "notes":["과장표현 없음"] }</pre></div></div></section><section id='pane-06' class='pane'><div class='section grid'><div class='card wide'><h3>Status</h3><p>draft → review → approved → scheduled → publishing → published</p></div><div class='card wide'><h3>Failure</h3><p>failed 상태, error code/message, 제한된 재시도, 사람 확인.</p></div><div class='card full'><h3>권장 자동화</h3><p><b>LEVEL 2:</b> AI 작성 → 사람 승인 → 예약시간에 서버 자동게시.</p></div></div></section><section id='pane-07' class='pane'><div class='section grid'><div class='card wide'><h3>OAuth 권한</h3><p>threads_basic / threads_content_publish / 필요 시 replies·insights 관련 권한.</p></div><div class='card wide'><h3>게시 흐름</h3><p>OAuth → token → media container → /me/threads_publish → thread id 저장.</p></div><div class='card'><h3>Text</h3><p>텍스트 게시.</p></div><div class='card'><h3>Image/Video</h3><p>Meta가 가져갈 수 있는 URL 필요.</p></div><div class='card'><h3>Carousel</h3><p>child containers → carousel → publish.</p></div><div class='card full'><p class='warn'><b>실제 구현 직전 공식 Threads API changelog 재확인.</b></p></div></div></section><section id='pane-08' class='pane'><div class='section grid'><div class='card wide'><h3>Analytics</h3><p>게시물별 조회·좋아요·답글·리포스트·인용 등 제공 지표를 시계열로 저장.</p></div><div class='card wide'><h3>Viral Lab</h3><p>타인의 글 복제가 아니라 우리 글 중 성과 상위 글의 Hook/형식/게시시간 패턴을 분석.</p></div><div class='card full'><p>다음 생성에서 상위 패턴을 <b>추천</b>하되 자동결정하지 않는다.</p></div></div></section><section id='pane-09' class='pane'><div class='section'><pre class='code'># DB SCHEMA
+
+workspaces(id, name, created_at)
+profiles(id, user_id, workspace_id, display_name, role)
+threads_accounts(id, workspace_id, owner_profile_id, threads_user_id, username, token_status, created_at)
+style_profiles(id, workspace_id, owner_profile_id, name, json_rules, updated_at)
+drafts(id, workspace_id, author_profile_id, threads_account_id, topic, body, content_type, status, scheduled_at, created_at, updated_at)
+assets(id, workspace_id, draft_id, storage_path, public_url, media_type)
+approvals(id, draft_id, reviewer_profile_id, action, note, created_at)
+publish_jobs(id, draft_id, state, attempt_count, scheduled_at, published_at, thread_id, error_code, error_message)
+metrics(id, threads_account_id, thread_id, measured_at, views, likes, replies, reposts, quotes, raw_json)
+ai_generations(id, workspace_id, draft_id, model, prompt_version, input_hash, output_json, cost_estimate, created_at)
+audit_logs(id, workspace_id, actor_profile_id, action, entity_type, entity_id, meta_json, created_at)
+</pre></div></section><section id='pane-10' class='pane'><div class='section grid'><div class='card'><h3>Frontend</h3><p>Next.js App Router + TypeScript</p></div><div class='card'><h3>DB/Auth</h3><p>Supabase</p></div><div class='card'><h3>Hosting</h3><p>Vercel</p></div><div class='card'><h3>Storage</h3><p>Supabase Storage</p></div><div class='card'><h3>Scheduler</h3><p>Vercel Cron 또는 Supabase scheduled jobs</p></div><div class='card'><h3>AI</h3><p>서버 라우트에서 한 모델부터 시작</p></div><div class='card full'><div class='flow'><span class='node'>Browser</span><span class='arrow'>→</span><span class='node'>Next.js Server</span><span class='arrow'>→</span><span class='node'>Supabase</span><span class='arrow'>→</span><span class='node'>Threads API / AI API</span></div></div></div></section><section id='pane-11' class='pane'><div class='section'><pre class='code'># SECURITY
+
+1. Meta App Secret와 Threads access token은 서버에서만 처리.
+2. .env.local은 gitignore.
+3. 브라우저 localStorage에 access token 장기 저장 금지.
+4. Supabase RLS로 workspace 경계를 강제.
+5. 게시 endpoint는 approved draft만 허용.
+6. 예약 job은 idempotency key로 중복게시 방지.
+7. 로그에 access token/app secret/AI key 기록 금지.
+8. 초기 테스트는 서브 Threads 계정.
+9. 자동게시 실패 시 제한된 재시도 + 사람 확인.
+</pre></div></section><section id='pane-12' class='pane'><div class='section grid'><div class='card wide'><h3 class='good'>P0 먼저</h3><ol><li>2명 로그인</li><li>Today</li><li>Draft CRUD</li><li>AI mock</li><li>승인</li><li>예약</li><li>Queue</li><li>Supabase 저장</li></ol></div><div class='card wide'><h3 class='warn'>아직 하지 않기</h3><ul><li>실제 Threads 게시</li><li>댓글 자동응답</li><li>완전자동</li><li>Playwright</li><li>복잡한 Viral 분석</li></ul></div></div></section><section id='pane-13' class='pane'><div class='section card full'><h2>12단계</h2><ol><li>정적 UI</li><li>Next.js 전환</li><li>Supabase Auth</li><li>Draft CRUD</li><li>2인 Workspace + RLS</li><li>AI 서버 라우트</li><li>승인/예약 Queue</li><li>Meta App/OAuth</li><li>Text 게시</li><li>Image/Video</li><li>Insights</li><li>Viral Lab/중복방지</li></ol></div><div class='section callout'>1~7을 먼저 완성해서 둘이 실제로 며칠 써보고, UI가 편할 때 8번으로 넘어간다.</div></section><section id='pane-14' class='pane'><div class='section grid'><div class='card wide'><h3>Claude</h3><ol><li>프로젝트 폴더 열기</li><li>START_PROMPT.md 붙여넣기</li><li>P0 하나만 구현</li><li>브라우저 검증</li></ol></div><div class='card wide'><h3>Codex</h3><ol><li>같은 repo/workspace 열기</li><li>START_PROMPT.md 제공</li><li>작은 변경 후 git diff</li><li>작동하면 commit</li></ol></div></div><div class='section'><textarea id='prompt' class='prompt'>당신은 시니어 SaaS 아키텍트, Next.js/Supabase 개발자, Meta Threads API 통합 엔지니어입니다.
+
+프로젝트명: Threads Duo OS
+목적: 두 명이 함께 사용하는 비공개 Threads 콘텐츠 운영 웹앱을 만든다.
+
+핵심 방향:
+- Electron/Playwright 중심이 아니라 공식 Meta Threads API 중심
+- 두 명의 사용자와 여러 Threads 계정을 분리 관리
+- AI 콘텐츠 생성 → 사람 승인 → 예약 → 공식 API 게시 → 인사이트 수집 → 성과학습
+- 기존 프로그램을 복제하지 않고 더 단순하고 안전하며 편하게 설계
+- 모바일/PC 어디서든 쓰는 웹앱/PWA
+- 서버 비밀키는 브라우저에 노출하지 않음
+
+반드시 먼저 읽을 파일:
+1. README.md
+2. PROJECT_PLAN.md
+3. MVP_SPEC.md
+4. DB_SCHEMA.md
+5. SECURITY.md
+6. MASTER_PLAN.html
+
+진행 규칙:
+1. 현재 구현 상태와 문서 명세의 GAP을 P0/P1/P2로 나눈다.
+2. P0 기능 중 가장 작은 기능 하나만 선택한다.
+3. 구현 전에 수정/생성할 파일과 이유를 설명한다.
+4. 기능을 구현한다.
+5. 실제 브라우저에서 해당 사용자 흐름을 검증한다.
+6. 실제 Meta Threads API 연결 전에는 mock/sandbox 모드를 유지한다.
+7. Threads OAuth/App Secret/API Token, AI API Key를 프론트엔드나 git에 절대 넣지 않는다.
+8. 외부 액션은 테스트 계정 승인 전에는 실행하지 않는다.
+9. 작업 후 관련 README.md / PROJECT_PLAN.md / MVP_SPEC.md / DB_SCHEMA.md를 업데이트한다.
+10. 기능이 커지면 components/services/lib/modules로 분리한다.
+11. 한 번에 대규모 리팩터링하지 않는다.
+12. 다음 단계는 한 개만 추천하고 멈춘다.
+
+권장 기술:
+- Next.js App Router + TypeScript
+- Supabase Auth/Postgres/Storage
+- Vercel
+- Meta Threads API OAuth 2.0
+- 서버측 AI API
+- Vercel Cron 또는 Supabase scheduled jobs
+- Zod/JSON Schema 기반 structured output
+
+첫 목표:
+&#x27;Today Dashboard → Draft 생성 → 승인 → Queue 저장&#x27; 흐름을 실제 DB까지 완성한다.
+Threads 실제 게시 API는 그 다음 단계에서 연결한다.
+
+지금은 코딩을 시작하기 전에:
+A. 현재 폴더를 읽고
+B. 프로젝트 구조를 요약하고
+C. 오늘 구현할 가장 작은 P0 기능 하나를 선택하고
+D. 그 작은 범위는 바로 구현하고 테스트까지 진행하라.
+</textarea><br><br><button class='copy' onclick="navigator.clipboard.writeText(document.getElementById('prompt').value);alert('복사 완료')">START PROMPT 복사</button></div></section><section id='pane-15' class='pane'><div class='section grid'><div class='card'><h3>Week 1</h3><p>둘 다 매일 로그인?</p></div><div class='card'><h3>Week 2</h3><p>기존 방식보다 초안→예약이 빠름?</p></div><div class='card'><h3>Week 3</h3><p>AI 5안 중 채택률 30%+?</p></div><div class='card'><h3>Week 4</h3><p>누락/중복/오류 거의 없음?</p></div><div class='card'><h3>Month 2</h3><p>성과 패턴이 반복 발견?</p></div><div class='card'><h3>Kill Rule</h3><p>자발적 사용이 없으면 기능 추가 대신 UX 재설계.</p></div></div></section><section id='pane-16' class='pane'><div class='section card full'><h2>공식 참고자료</h2><ul><li><a href='https://www.postman.com/meta/threads/overview' target='_blank'>Meta Threads official Postman workspace</a></li><li><a href='https://www.postman.com/meta/threads/documentation/dht3nzz/threads-api' target='_blank'>Threads API documentation</a></li><li><a href='https://www.postman.com/meta/threads/folder/34203612-e0373e84-de6b-46f1-b90d-3fea76ba6782' target='_blank'>Authorization / permissions</a></li></ul><p class='muted'>실제 OAuth/권한/게시 구현 직전 최신 공식 문서를 다시 확인.</p></div></section><div class='footer'>Threads Duo OS · Master Plan v0.1 · 2026-10-01</div></div><script>function showTab(n){document.querySelectorAll('.pane').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tabbtn').forEach(x=>x.classList.remove('active'));document.getElementById('pane-'+n).classList.add('active');[...document.querySelectorAll('.tabbtn')].find(b=>b.textContent.trim().startsWith(n))?.classList.add('active');localStorage.setItem('duoTab',n)}showTab(localStorage.getItem('duoTab')||'01');</script></body></html>
