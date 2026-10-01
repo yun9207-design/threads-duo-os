@@ -43,7 +43,8 @@ export function scheduledDate(value: string) {
 
 export function scheduleSummary(drafts: DraftRow[], referenceTime: string) {
   const today = kstInput(referenceTime).slice(0, 10);
-  const scheduled = drafts.filter((draft) => draft.status === "approved" && !draft.deleted_at && draft.scheduled_at)
+  const scheduled = drafts.filter((draft) => draft.status === "approved" && !draft.deleted_at && draft.scheduled_at
+    && draft.publication_status === "unpublished")
     .sort((a, b) => Date.parse(a.scheduled_at!) - Date.parse(b.scheduled_at!) || a.id.localeCompare(b.id));
   return {
     scheduled,

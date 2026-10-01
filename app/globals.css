@@ -1606,3 +1606,14 @@ main {
 .draft-scheduling input { width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 8px; font: inherit; background: #fff; color: inherit; }
 .draft-scheduling input:disabled { opacity: .6; }
 @media (max-width: 480px) { .draft-scheduling { padding: 20px; } }
+.threads-connection { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin: 18px 0; padding: 16px 20px; background: white; border: 1px solid var(--line); border-radius: 10px; }
+.threads-connection strong { font-size: 13px; }
+.threads-connection p, .draft-publishing p { font-size: 12px; color: var(--muted); line-height: 1.7; overflow-wrap: anywhere; }
+.draft-publishing { padding: 20px 24px; border-top: 1px solid var(--line); }
+.draft-publishing h3 { font-size: 15px; margin: 0 0 12px; }
+.draft-publishing code { color: var(--ink); }
+.post-status.published { color: #377b53; background: #edf6ef; }
+.post-status.failed { color: #a34036; background: #fff0ed; }
+.post-status.publishing { color: #6853a1; background: #f1edff; }
+button:disabled { cursor: not-allowed; }
+@media (max-width: 480px) { .threads-connection { align-items: flex-start; flex-direction: column; } }

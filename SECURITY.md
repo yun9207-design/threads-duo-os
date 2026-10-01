@@ -1,5 +1,7 @@
 # SECURITY
 
+Threads 게시 추가 경계: access token과 게시 결과 쓰기용 secret은 server-only 모듈의 환경변수에서만 읽고 NEXT_PUBLIC prefix를 사용하지 않는다. Supabase service-role/secret key는 사용하지 않는다. 빈 search_path의 private definer가 현재 auth.uid 멤버십과 서버 secret digest를 모두 검사하고 public invoker wrapper가 좁은 게시 연산만 제공한다. 브라우저는 게시 결과를 위조하거나 계정 metadata를 직접 변경할 수 없다. Bearer header로 Meta에 토큰을 전달하며 URL/응답/로그에 토큰을 포함하지 않고 외부 redirect를 거절한다. provider 오류 원문을 저장하지 않는다. 원자적 DB claim으로 중복 게시를 막고 실제 게시 응답이 불확실하면 수동 재시도도 차단한다. 서버 env 자격증명이 없는 동안 실제 외부 게시를 하지 않는다. 기존 보안 기록은 아래 보존한다.
+
 ## Scheduling 1단계 추가 경계
 
 기존 Auth/Workspace/RLS를 유지하고 scheduled_at UPDATE 열만 허용한다. 서버는 기존 사용자·멤버십·버전 조건을 사용하며 DB CHECK/SECURITY INVOKER trigger가 직접 Data API에서도 활성 approved 및 새 예약의 미래 시각 조건을 강제한다. 신규 API는 기존 same-origin JSON/private-no-store를 재사용하며 상태/identity 필드 입력을 허용하지 않는다. 비밀키·새 환경변수·게시 권한·외부 API 호출은 추가하지 않았다. 상세는 `docs/SCHEDULING.md`를 따른다.

@@ -7,17 +7,20 @@ import { DraftApprovalHistory } from "@/components/draft-approval-history";
 import type { DraftWorkspace } from "@/lib/drafts";
 import type { DraftRow, DraftStatus } from "@/lib/supabase/database.types";
 import { kstInput, kstInputToIso, scheduledDate, scheduleSummary } from "@/lib/draft-scheduling";
+import type { ThreadsConnection } from "@/lib/threads-publishing";
 
 const statusLabels: Record<DraftStatus, string> = { draft: "초안", pending: "승인 대기", approved: "승인됨" };
+const publicationLabels = { unpublished: "게시 전", publishing: "게시 중", published: "게시완료", failed: "게시오류" };
 type Filter = "all" | DraftStatus;
 
 function savedDate(value: string) {
   return new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", month: "numeric", day: "numeric" }).format(new Date(value));
 }
 
-export function TodayDashboard({ userEmail, workspace, initialDrafts, loadError, referenceTime }: {
+export function TodayDashboard({ userEmail, workspace, initialDrafts, loadError, referenceTime, initialConnection }: {
   userEmail: string; workspace: DraftWorkspace | null; initialDrafts: DraftRow[]; loadError: string;
   referenceTime: string;
+  initialConnection: ThreadsConnection;
 }) {
   const [drafts, setDrafts] = useState(initialDrafts);
   const [filter, setFilter] = useState<Filter>("all");
@@ -32,6 +35,7 @@ export function TodayDashboard({ userEmail, workspace, initialDrafts, loadError,
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [scheduleTime, setScheduleTime] = useState("");
   const [scheduleClock, setScheduleClock] = useState(referenceTime);
+  const [connection, setConnection] = useState(initialConnection);
   useEffect(() => {
     const timer = setInterval(() => setScheduleClock(new Date().toISOString()), 30000);
     return () => clearInterval(timer);
@@ -48,6 +52,12 @@ export function TodayDashboard({ userEmail, workspace, initialDrafts, loadError,
   const authorName = (id: string) => workspace?.members.find((member) => member.profile_id === id)?.profiles?.display_name ?? "워크스페이스 멤버";
   const schedule = scheduleSummary(drafts, scheduleClock);
   const unsavedChanges = editing && (topic !== editing.topic || body !== editing.body || status !== editing.status);
+  const publicationLocked = !!editing && (editing.publication_status === "published"
+    || editing.publication_status === "publishing" || !editing.publish_retryable);
+  const publicationCounts = {
+    published: drafts.filter((draft) => draft.publication_status === "published").length,
+    failed: drafts.filter((draft) => draft.publication_status === "failed").length,
+  };
 
   function openDraft(draft: DraftRow | null) {
     setEditing(draft);
@@ -67,7 +77,7 @@ export function TodayDashboard({ userEmail, workspace, initialDrafts, loadError,
       ...(payload === undefined ? {} : {
         headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
       }),
-      signal: AbortSignal.timeout(20000),
+      signal: AbortSignal.timeout(path.endsWith("/publish") ? 115000 : 20000),
     });
     const result = await response.json();
     if (!response.ok) {
@@ -153,6 +163,36 @@ export function TodayDashboard({ userEmail, workspace, initialDrafts, loadError,
     } finally { setBusy(false); }
   }
 
+  async function connectAccount() {
+    if (busy || !workspace) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const result = await request("/api/workspaces/" + workspace.workspace.id + "/threads", "POST", {});
+      setConnection({ ...connection, account: result.account, error: "" });
+      setNotice("Threads 계정이 연결되었습니다.");
+    } catch (failure) { setError(failure instanceof Error ? failure.message : "계정을 연결하지 못했습니다."); }
+    finally { setBusy(false); }
+  }
+
+  async function publishNow() {
+    if (busy || !editing || !workspace || unsavedChanges || publicationLocked) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const result: { draft: DraftRow } = await request(baseUrl + "/" + editing.id + "/publish", "POST", {
+        expectedUpdatedAt: editing.updated_at,
+      });
+      setEditing(result.draft);
+      setDrafts((items) => items.map((item) => item.id === result.draft.id ? result.draft : item));
+      setNotice("Threads에 게시되었습니다. 게시 ID: " + result.draft.threads_post_id);
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "게시 결과를 확인하지 못했습니다.");
+      try {
+        const items = await reloadDrafts();
+        setEditing(items.find((item) => item.id === editing.id) ?? editing);
+      } catch { /* Keep the error until a fresh DB read is possible. */ }
+    } finally { setBusy(false); }
+  }
+
   return (
     <div className="app-shell">
       <a className="skip-link" href="#main">본문으로 건너뛰기</a>
@@ -197,14 +237,14 @@ export function TodayDashboard({ userEmail, workspace, initialDrafts, loadError,
               ["all", "전체 글", "pen", "전체 저장된 글"],
               ["draft", "초안", "calendar", "함께 다듬는 아이디어"],
               ["pending", "승인 대기", "review", "서로의 확인을 기다려요"],
-              ["approved", "승인됨", "check", "게시 전 준비된 글"],
+              ["approved", "승인됨", "check", "승인 상태로 저장된 글"],
             ] as const).map(([key, label, icon, caption]) => (
               <article className="stat-card" key={key}><div className="stat-top"><span>{label}</span><span className={"stat-icon " + ({ all: "neutral", draft: "orange", pending: "violet", approved: "green" })[key]}><Icon name={icon} size={19} /></span></div>
                 <div className="stat-value">{counts[key]}<span>건</span></div><p>{caption}</p>
               </article>
             ))}
           </section>
-          <section className="stats-grid schedule-stats" aria-label="저장된 예약 요약">
+          <section className="stats-grid schedule-stats" aria-label="예약 및 게시 현황">
             {([["today", "오늘 예약", "한국 시간 오늘에 지정된 예약"],
               ["upcoming", "다가오는 예약", "한국 시간 내일 이후의 예약"]] as const).map(([key, label, caption]) => (
               <article className="stat-card" key={key}>
@@ -212,6 +252,22 @@ export function TodayDashboard({ userEmail, workspace, initialDrafts, loadError,
                 <div className="stat-value">{schedule[key]}<span>건</span></div><p>{caption}</p>
               </article>
             ))}
+          </section>
+          <section className="stats-grid schedule-stats" aria-label="실제 게시 현황">
+            {(["published", "failed"] as const).map((key) => (
+              <article className="stat-card" key={key}>
+                <div className="stat-top"><span>{publicationLabels[key]}</span><span className="stat-icon orange"><Icon name="check" size={19} /></span></div>
+                <div className="stat-value">{publicationCounts[key]}<span>건</span></div><p>저장된 실제 게시 결과</p>
+              </article>
+            ))}
+          </section>
+          <section className="threads-connection" aria-label="Threads 게시 계정">
+            <div><strong>Threads 게시 계정</strong><p>{connection.error || (connection.account
+              ? "@" + connection.account.username + (connection.configured ? " · 수동 게시 가능" : " · 서버 연결 설정 필요")
+              : "아직 연결된 Threads 계정이 없습니다.")}</p></div>
+            {workspace?.role === "owner" && <button type="button" className="draft-secondary"
+              disabled={busy || !connection.configured || !!connection.error} onClick={connectAccount}>
+              {connection.account ? "연결 확인" : "Threads 계정 연결"}</button>}
           </section>
           <div className="drafts-feedback">
             {error && <p className="auth-error" role="alert">{error}</p>}
@@ -235,7 +291,8 @@ export function TodayDashboard({ userEmail, workspace, initialDrafts, loadError,
                   disabled={busy} onClick={() => openDraft(draft)} aria-label={draft.topic + " 수정"}>
                   <div className="queue-time"><strong>{savedDate(draft.created_at)}</strong><span>{authorName(draft.author_profile_id)}</span></div>
                   <div className="queue-content"><h3>{draft.topic}</h3><span className="draft-body-preview">{draft.body || "본문을 채워보세요."}</span></div>
-                  <span className={"post-status " + draft.status}>{statusLabels[draft.status]}</span>
+                  <span className={"post-status " + (draft.publication_status === "unpublished" ? draft.status : draft.publication_status)}>
+                    {draft.publication_status === "unpublished" ? statusLabels[draft.status] : publicationLabels[draft.publication_status]}</span>
                 </button>
               ))}
               {!visibleDrafts.length && <div className="empty-state"><Icon name="pen" size={25} /><h3>{error ? "글을 불러오지 못했어요" : filter === "all" ? "첫 글을 함께 시작해요" : "해당 상태의 글이 없어요"}</h3><p>{error ? "목록 새로고침으로 다시 연결해 주세요." : "오른쪽에서 작성한 글이 여기에 쌓입니다."}</p></div>}
@@ -244,7 +301,7 @@ export function TodayDashboard({ userEmail, workspace, initialDrafts, loadError,
             <section className="panel studio-panel" id="studio" aria-label="글 편집">
               <div className="studio-heading"><span className="studio-icon"><Icon name="pen" size={21} /></span><div><span className="section-kicker">MAKE SPACE FOR IDEAS</span><h2>{editing ? "글 수정" : "새 글 작성"}</h2><p>생각을 적고, 함께 다듬어 보세요.</p></div></div>
               <form className="draft-editor" onSubmit={saveDraft}>
-                <fieldset disabled={busy || !workspace}>
+                <fieldset disabled={busy || !workspace || publicationLocked}>
                   <label htmlFor="draft-topic">주제</label>
                   <input id="draft-topic" name="topic" placeholder="어떤 이야기를 나누고 싶나요?" value={topic} onChange={(event) => setTopic(event.target.value)} required maxLength={200} />
                   <label htmlFor="draft-body">본문</label>
@@ -272,7 +329,7 @@ export function TodayDashboard({ userEmail, workspace, initialDrafts, loadError,
               {editing && <section className="draft-scheduling" aria-label="글 예약">
                 <h3>예약시간</h3>
                 <p>{editing.scheduled_at ? "저장된 예약: " + scheduledDate(editing.scheduled_at) + " KST" : "저장된 예약이 없습니다."}</p>
-                {editing.status === "approved" ? <>
+                {editing.status === "approved" && !publicationLocked ? <>
                   <label htmlFor="draft-schedule-time">예약 날짜와 시간 (한국 시간)</label>
                   <input id="draft-schedule-time" type="datetime-local" value={scheduleTime}
                     min={kstInput(scheduleClock)} disabled={busy || !!unsavedChanges}
@@ -284,8 +341,24 @@ export function TodayDashboard({ userEmail, workspace, initialDrafts, loadError,
                       onClick={() => saveSchedule(true)}>예약 취소</button>}
                   </div>
                   {unsavedChanges && <p>글 변경사항을 먼저 저장한 뒤 예약해 주세요.</p>}
-                </> : <p>승인된 글에만 예약시간을 지정할 수 있습니다.</p>}
-                <p>시간만 저장합니다. 실제 Threads 게시는 실행되지 않습니다.</p>
+                </> : <p>{publicationLocked ? "게시 중이거나 게시 결과가 저장된 글입니다." : "승인된 글에만 예약시간을 지정할 수 있습니다."}</p>}
+                <p>예약시간에 자동으로 게시되지 않습니다. 지금 게시 버튼으로 실행해 주세요.</p>
+              </section>}
+              {editing && <section className="draft-publishing" aria-label="Threads 게시">
+                <h3>Threads 게시 · {publicationLabels[editing.publication_status]}</h3>
+                {editing.published_at && <p>게시 시각 {scheduledDate(editing.published_at)} KST</p>}
+                {editing.threads_post_id && <p>게시 ID <code>{editing.threads_post_id}</code></p>}
+                {editing.publish_error && <p role="alert">{editing.publish_error}</p>}
+                {editing.publication_status === "publishing" && <p>게시 시도가 진행 중입니다. 목록 새로고침으로 결과를 확인해 주세요.</p>}
+                {!publicationLocked && <>
+                  <p>{connection.account ? "@" + connection.account.username + "에 저장된 본문을 지금 게시합니다." : "Threads 계정 연결이 필요합니다."}</p>
+                  <button type="button" className="button primary" disabled={busy || !!unsavedChanges
+                    || editing.status !== "approved" || !editing.scheduled_at || !editing.body.trim()
+                    || !connection.configured || !connection.account || !!connection.error} onClick={publishNow}>
+                    {busy ? "처리 중…" : "지금 게시"}</button>
+                  {(editing.status !== "approved" || !editing.scheduled_at) && <p>승인과 예약시간 저장을 먼저 완료해 주세요.</p>}
+                  {unsavedChanges && <p>변경사항을 먼저 저장해 주세요.</p>}
+                </>}
               </section>}
               {editing && workspace && <DraftApprovalHistory key={editing.id + editing.updated_at}
                 workspaceId={workspace.workspace.id} draftId={editing.id} actorName={authorName} />}

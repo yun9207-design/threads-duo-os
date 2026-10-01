@@ -1,5 +1,7 @@
 # DB SCHEMA
 
+추가 적용 migration: `20261001110343_threads_text_publishing.sql`. `threads_accounts`는 workspace별 Threads 사용자 ID/username/연결자/시각 metadata만 저장한다. `drafts`에 publication_status, threads_account_id, threads_container_id, threads_post_id, published_at, publish_error, publish_attempt_id, publish_started_at, publish_retryable을 추가했다. review status의 기존 세 값은 유지한다. 비노출 `private.threads_publishing_config`에는 서버 secret의 SHA256 digest만 저장하며 access token은 DB에 저장하지 않는다. metadata는 멤버 SELECT만 허용하고 게시 결과 열은 일반 client 쓰기가 불가능하다. 상세는 `docs/THREADS_PUBLISHING.md`.
+
 ## Scheduling 1단계 추가 스키마
 
 실제 적용 migration: `20261001102605_draft_scheduling.sql`. 기존 drafts에 nullable `scheduled_at timestamptz` 하나만 추가했다. 활성 approved 글만 예약하도록 CHECK/trigger를 사용하고 새 시간은 미래·유한한 값만 받는다. 승인 철회/soft delete는 예약을 해제한다. 기존 workspace 멤버 RLS를 유지하고 scheduled_at UPDATE 열 권한 및 활성 예약 부분 인덱스만 추가했다. 테이블·게시 작업자·추가 상태값은 만들지 않는다. 상세는 `docs/SCHEDULING.md`를 따른다.

@@ -1,5 +1,17 @@
 # TEST NOTES
 
+## 2026-10-01 — Threads 실제 게시 엔진 1단계
+
+`20261001110343_threads_text_publishing.sql`을 실제 Supabase 프로젝트에 적용했다. 계정 metadata, 독립 publication_status/게시 ID/시각/오류/원자적 시도 잠금만 추가했다. 기존 Auth/Workspace/승인 상태/RLS 정책/이전 migration은 변경하지 않았고 이전 기능이나 A/B 로그인 검사를 반복하지 않았다.
+
+`node scripts/test-threads-publishing.mjs` PASS. 새 migration을 적용한 격리 실제 Postgres에서 모의 Meta transport의 컨테이너 생성 → FINISHED 조회 → publish 응답 → DB published 결과를 검사했다. DB 재연결 후 post/container ID와 published_at 유지, 중복 claim·직접 게시 결과 위조·잠긴 글 편집 차단, 실패 시 안전한 오류 저장, publish timeout의 재시도 금지, 외부 성공 후 DB 저장 실패의 재게시 차단을 확인했다. 기존 status=approved는 유지한다. **Meta 네트워크 응답은 모의이며 실제 외부 게시 성공은 아니다.**
+
+실제 Supabase에서도 새 RPC의 claim/container/published 결과를 단일 트랜잭션 fixture로 확인했다. 결과는 PASS이며 전체 ROLLBACK해 가짜 계정/게시 ID/글이 실제 앱에 남지 않는다. access token은 없고 private config에는 로컬 server secret의 SHA256 hash만 적용했다.
+
+lint/typecheck/Production build PASS. `node scripts/smoke-threads-http.mjs` PASS: 신규 연결/게시 endpoint만 세션 없는 접근 401, 외부 Origin 403, token 주입 입력 400, private/no-store를 확인했다. 새 계정 경로의 WorkspaceAccessError를 503으로 오인하던 오류 매핑을 수정했다. `node scripts/check-publishing-secrets.mjs` PASS: .env.local untracked, 실제 로컬 server secret은 Git diff 및 browser build에 없으며 browser bundle에 서버 설정 코드도 없다. 기존 MASTER_PLAN 두 파일의 SHA256은 `3073aaab4c243c773675df4e123c8e3508e09caf1bf9529effe67022dfa34dff`로 동일하며 기존 tracked MD 22개 누락/삭제는 0개다. 실제 Meta credential과 Vercel 새 서버 변수 설정은 별도 필요한 준비다. 브라우저의 기존 인증 세션을 자동으로 얻지 못해 추가 로그인·수동 검증을 요청하지 않았다. 사용자가 Meta 설정부터 필요하다고 확인했으므로 token 설정 전 실제 게시 성공을 주장하거나 mock을 운영 DB 결과로 표시하지 않는다.
+
+Supabase advisor의 [private config RLS 무정책 안내](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy)는 클라이언트 접근을 전면 거절하려는 의도다. 관련 테이블 권한도 모두 회수했다. 기존 [유출 비밀번호 보호 경고](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection)는 Auth 동결 범위라 변경하지 않았다. 상세 연결/불확실 게시 복구 경계는 `docs/THREADS_PUBLISHING.md`를 따른다.
+
 ## 2026-10-01 — Scheduling 1단계
 
 실제 Supabase에 `20261001102605_draft_scheduling.sql`을 적용했다. approved 글의 예약시간만 저장하며 기존 Auth/Workspace/RLS/승인 이력 반복 검사는 수행하지 않았다. 연결 도구가 작업 중 잠시 사라졌다가 복구되어 실제 적용을 완료했다. 기존 브라우저 탭이 없어 새 탭을 열었으며 저장된 A 세션을 그대로 사용했다. 추가 로그인/사용자 수동 검증 요청은 없다.

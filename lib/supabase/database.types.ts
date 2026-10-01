@@ -1,9 +1,18 @@
 // Types for the workspace, drafts and approval history migrations.
 export type DraftStatus = "draft" | "pending" | "approved";
+export type PublicationStatus = "unpublished" | "publishing" | "published" | "failed";
+export type ThreadsAccountRow = {
+  id: string; workspace_id: string; threads_user_id: string; username: string;
+  connected_by: string; connected_at: string;
+};
 export type DraftRow = {
   id: string; workspace_id: string; author_profile_id: string;
   topic: string; body: string; status: DraftStatus;
   created_at: string; updated_at: string; deleted_at: string | null; scheduled_at: string | null;
+  publication_status: PublicationStatus; threads_account_id: string | null;
+  threads_container_id: string | null; threads_post_id: string | null; published_at: string | null;
+  publish_error: string | null; publish_attempt_id: string | null;
+  publish_started_at: string | null; publish_retryable: boolean;
 };
 export type DraftApprovalHistoryRow = {
   id: string; draft_id: string; workspace_id: string; actor_user_id: string;
@@ -21,6 +30,9 @@ type MemberRow = {
 export type Database = {
   public: {
     Tables: {
+      threads_accounts: {
+        Row: ThreadsAccountRow; Insert: never; Update: never; Relationships: [];
+      };
       draft_approval_history: {
         Row: DraftApprovalHistoryRow;
         Insert: never;
@@ -99,6 +111,12 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      threads_publish_operation: {
+        Args: { p_workspace_id: string; p_secret: string; p_operation: string;
+          p_draft_id?: string; p_expected_updated_at?: string; p_attempt_id?: string;
+          p_data?: Record<string, string | boolean> };
+        Returns: unknown;
+      };
       update_draft_with_history: {
         Args: { p_workspace_id: string; p_draft_id: string; p_expected_updated_at: string;
           p_topic: string; p_body: string; p_status: DraftStatus; p_note?: string | null };

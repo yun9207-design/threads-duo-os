@@ -1,5 +1,7 @@
 # PROJECT PLAN — Threads Duo OS
 
+현재 단계: Threads 텍스트 수동 게시 엔진과 DB 결과 저장 구현. approved + scheduled_at 글만 실행하고 publication_status/published_at/Threads ID/오류를 저장한다. Meta token 연결 전에는 버튼이 비활성화되며 실제 게시 완료로 간주하지 않는다. Cron/자동 실행은 추가하지 않는다. 상세는 `docs/THREADS_PUBLISHING.md`.
+
 예약 게시 1단계 구현: 승인된 글의 예정 시간 저장·수정·취소와 실제 DB 기반 예약 목록·오늘/다가오는 예약 집계. 실제 Supabase migration 적용 및 기존 세션의 예약/새로고침 검증을 완료했다. Auth/Workspace/CRUD/승인 이력 재검증을 반복하지 않았으며 실제 게시 실행은 범위에 없다. 상세는 `docs/SCHEDULING.md`를 따른다.
 
 최신 완료 범위는 Draft 승인 이력이다. 실제 DB trigger와 메모 저장 RPC, 멤버 전용 이력 조회, 기존 편집 카드의 시간순 이력 표시를 추가했다. draft → pending → approved의 정확히 2건을 격리 DB와 기존 실제 세션에서 확인했다. 아래 Drafts 완료 기록을 보존하며 Auth/Workspace/기존 RLS 검사는 반복하지 않았다. 상세는 `docs/APPROVAL_HISTORY.md`를 따른다.
