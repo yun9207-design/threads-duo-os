@@ -58,3 +58,7 @@ Auth 외 Stage B 기능(users/workspaces/drafts/RLS/Storage), 회원가입·비�
 후속 요청에 따라 설계 파일 준비를 넘어 실제 Supabase의 profiles/workspaces/workspace_members와 RLS까지 적용했다. 확인 완료 A/B 계정을 공동 workspace의 owner/member로 연결하고 기존 Auth를 유지하는 읽기 전용 API를 추가했다. 조회는 실제 사용자 세션의 Data API 요청과 DB 멤버십으로 보호하며 익명·외부 ID·쓰기·역할 승격을 차단한다.
 
 현재 단계는 workspace 권한 기반만 다룬다. 화면의 운영 데이터·workspace 표시는 계속 mock이며 Threads 계정·초안·승인·예약·AI·게시·Storage를 구현하지 않는다. DB 정책, 실제 A/B 로그인 상태의 접근 검사, Auth 회귀와 품질 검사 결과는 `docs/TEST_NOTES.md`에 남긴다. 기존 문서와 MASTER_PLAN을 보존하며 앱 변경의 push/배포는 이번 작업 범위에 포함하지 않는다. workspace/RLS 검증 후 여기서 멈춘다.
+
+## 2026-10-01 — Auth / Workspace / RLS 기반 완료
+
+후속 요청으로 `ebc7716`의 main push와 Vercel Production 배포를 완료했다. 기존 실제 A/B 권한·세션 검사, Supabase RLS 검사와 격리 PostgreSQL 50개 통과 결과를 유지하며 최종 lint/typecheck/build도 다시 통과했다. Production 로그인은 사용자 Chrome에서 확인했고 익명 경로 보호·workspace API 401·공개 마스터플랜은 HTTP로 확인했다. 추가 A/B 수동 재검사는 사용자 지시로 중단했다. 검증의 증거 방식을 `docs/TEST_NOTES.md`에 구분해 기록했다. 다음 작업은 workspace 경계를 적용한 실제 drafts DB CRUD이며 Threads·AI·승인·예약·게시 기능은 아직 진행하지 않는다.

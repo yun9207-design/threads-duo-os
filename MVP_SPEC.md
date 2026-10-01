@@ -2,7 +2,7 @@
 
 ## P0
 - [x] 이메일 로그인 (Auth 1단계 로컬·Production 검증 완료)
-- [ ] 2명 workspace
+- [x] 2명 workspace (profiles/멤버십/RLS·조회 API 기반, 화면은 mock)
 - [ ] Threads account placeholder
 - [x] Today dashboard (mock 첫 화면)
 - [ ] Draft CRUD
@@ -62,3 +62,5 @@ workspace·Threads 계정·draft·승인·큐·수치는 기존 mock으로 유�
 실제 Supabase에 profiles·workspaces·workspace_members를 생성하고, 공동 workspace에 A(owner)/B(member) 두 사용자 멤버십을 준비했다. 가입 workspace 및 멤버 프로필/멤버십 조회만 허용하는 RLS와 읽기 API를 구현했다. 익명 조회·외부 workspace ID·쓰기·역할 승격은 차단한다. 실제 데이터 접근과 기존 Auth 회귀 검증 결과는 `docs/TEST_NOTES.md`에 기록한다.
 
 이번 범위는 권한 기반까지만 완료한다. 회원 초대·workspace 생성/전환 UI·역할 관리 UI는 없으며 기존 Dashboard는 보존한다. Threads 계정·콘텐츠·초안·승인·예약 큐·운영 수치는 계속 mock이다. Draft CRUD, Storage, AI, OAuth와 실제 예약/게시의 완료 상태는 변경하지 않는다. 앱 변경은 로컬 검증 상태이며 이번에는 추가 Production 배포를 하지 않는다.
+
+후속 배포 완료: workspace/RLS commit `ebc7716` main push 및 Vercel Production 배포가 완료됐다. 기존 A/B·RLS 50개 결과와 최종 품질 검사, Production 로그인 사용자 확인/익명 HTTP smoke를 근거로 두 사용자 workspace 권한 기반을 완료 처리한다. 추가 A/B 수동 로그인 반복은 사용자 요청으로 중단한다. 다음 구현 범위는 실제 drafts DB CRUD이며 기타 콘텐츠 기능의 완료 상태는 바꾸지 않는다.

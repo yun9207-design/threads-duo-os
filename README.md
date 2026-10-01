@@ -132,3 +132,7 @@ Supabase Site URL은 `https://threads-duo-os.vercel.app`으로 설정했다. 현
 - 기존 `/login`, Dashboard, 로그아웃과 공개 `/MASTER_PLAN.html`은 유지한다. Dashboard의 workspace 이름·운영 큐·계정·수치는 계속 mock 표시다.
 
 스키마·권한·관리자 provisioning·검증 방법은 [WORKSPACE_ACCESS](docs/WORKSPACE_ACCESS.md), 실제 A/B 브라우저 및 DB 검사 결과는 [TEST_NOTES](docs/TEST_NOTES.md)에 기록한다. A/B 외부 ID 검증용 전용 workspace 두 개는 `[RLS verification]` 이름으로 구분해 보존한다. 앱 변경은 로컬 검증 상태이며 이번 단계에서 GitHub push·Vercel 배포는 수행하지 않았다. 초안·Threads 계정·예약·AI·게시 기능은 구현하지 않았다.
+
+## 2026-10-01 — Auth / Workspace / RLS Production 완료
+
+후속 배포 요청에 따라 workspace/RLS commit `ebc7716`을 main에 push했고 Vercel Git 배포가 완료됐다. [Production](https://threads-duo-os.vercel.app/)에서 로그인·익명 보호·workspace API·MASTER_PLAN 제공을 확인했다. 실제 A/B 공동 조회(owner/member)와 외부 ID 차단·세션 유지·로그아웃은 기존 로컬/DB 결과, Production 정상 로그인은 사용자의 Chrome 확인을 근거로 한다. 사용자 요청에 따라 추가 A/B 수동 재검사는 중단했다. lint/typecheck/build를 최종 재확인해 모두 통과했으며 상세 범위와 결과는 `docs/TEST_NOTES.md`에 기록했다. Auth·workspace·RLS 기반을 완료 처리하고 다음 기능은 실제 drafts DB CRUD다. Dashboard의 운영 콘텐츠와 수치는 계속 mock이다.

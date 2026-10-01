@@ -275,3 +275,17 @@ workspace/RLS 단계에서 멈춘다. 다음 콘텐츠 기능은 시작하지 �
 ### 최종 로컬 B 재검사 완료
 
 사용자가 직접 B 비밀번호를 입력한 실제 내장 브라우저 탭에서 Dashboard와 B 이메일을 확인했다. Dashboard 새로고침 후에도 B 이메일이 유지됐으며 공동 API는 200 + member + A/B 두 멤버를 반환했다. 목록에는 공동/B-only만 포함됐고 실제 A-only ID는 404로 차단됐다. 검사 페이지 새로고침 후 공동 조회/역할도 유지됐다. B 로그아웃은 `/login`으로 이동했고 익명 `/` 재접근은 로그인 화면, 공동 API는 401이었다. A/B 결과의 캐시는 `private, no-store`다. 임시 로컬 검사 HTML은 제거했으며 commit/배포하지 않는다. 기존 Auth 코드는 변경하지 않았다. 최종 로컬 A/B smoke가 모두 통과했으므로 기존 workspace/RLS 변경을 main에 반영한다.
+
+## 2026-10-01 — Workspace / RLS main 배포
+
+- 구현 commit: `ebc771615a5ce4d2aac3ebfec5291737aae333d1` (`feat: add workspace membership and RLS access controls`). 21개 파일만 포함했고 `.env.local`·`.tools`·임시 검사 HTML은 제외했다.
+- GitHub main push 성공: `07a7a18..ebc7716`. 원격과 로컬 main이 일치한다.
+- Vercel GitHub commit status: 처음 pending(`Vercel is deploying your app`), 이후 success(`Deployment has completed`)로 전환됐다. [배포 상세](https://vercel.com/bluegee/threads-duo-os/2BPegQ6W5S8pEtNXyG9yfduRs4ET), main/구현 commit 기준으로 확인했다.
+- Production alias: `https://threads-duo-os.vercel.app/`. 배포 완료 후 `/login` 200, 익명 `/` 307 → `/login`, workspace 목록·공동 상세 API 401을 확인했다. API 캐시는 `private, no-store`다. `/MASTER_PLAN.html`은 200이며 HTTP 본문 SHA256이 보존한 원본과 일치한다.
+- 기존 Vercel Production 공개 환경변수 두 개와 이미 적용된 Supabase RLS를 그대로 사용했다. DB migration·provisioning 재실행, 새 키·설정·Auth/UI/콘텐츠 기능 변경은 없다.
+
+### 최종 완료 기준
+
+사용자가 Production Chrome에서 A 로그인 성공을 확인했다. 현재 Chrome 자동 연결이 되지 않아 해당 세션의 정상 workspace 응답·로그아웃을 자동 검사한 것으로 기록하지 않는다. 이후 사용자가 추가 A/B 수동 재검증을 중단하고 기존 결과와 RLS 50개 통과 결과를 신뢰해 단계를 완료하라고 명시했다. 따라서 이전 실제 A/B 공동 조회 200(owner/member)·외부 ID 404·세션/로그아웃/익명 차단과 실제 Supabase DB 검사를 최종 권한 근거로 유지한다. 이번 Production 정상 로그인은 사용자 1회 확인, workspace HTTP smoke는 익명 401 차단 확인이며 추가 정상 A/B 전체 반복 검사를 수행하지 않았다.
+
+최종 `git status`/diff에는 배포 기록 문서 외 변경이 없었다. `npm run lint`, `npm run typecheck`, `npm run build`를 다시 실행해 모두 통과했다. 기존 Auth·Dashboard·MASTER_PLAN에 diff 없음, 기존 MD 삭제 없음, 현재 tracked MD 19개 모두 존재. 실제 환경변수·임시 검사 화면은 Git 제외/제거 상태다. 사용자 지정 검증 범위에 따라 Auth + workspace + RLS 기반 단계를 완료 처리하며 다음 단계는 실제 drafts DB CRUD다. drafts 구현은 이 배포 commit에 포함하지 않는다.
