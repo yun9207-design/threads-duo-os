@@ -1,0 +1,32 @@
+{
+  "name": "threads-duo-os",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "sync:master-plan": "node scripts/sync-master-plan.mjs",
+    "predev": "npm run sync:master-plan",
+    "dev": "next dev",
+    "prebuild": "npm run sync:master-plan",
+    "build": "next build",
+    "prestart": "npm run sync:master-plan",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "next typegen && tsc --noEmit"
+  },
+  "dependencies": {
+    "next": "16.3.8",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.0",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "eslint": "9.39.5",
+    "eslint-config-next": "16.3.8",
+    "typescript": "6.0.3"
+  }
+}
