@@ -71,7 +71,7 @@ npm run start
 
 프로젝트 루트 디렉터리를 이 저장소의 루트로 설정하고 Framework Preset은 **Next.js**, Build Command는 `npm run build`, Output Directory는 기본값 `.next`를 사용한다. 초기 UI 구현은 로컬 검증까지 진행했다. 배포는 연결된 GitHub 저장소 `yun9207-design/threads-duo-os`의 `main`에 push해 Vercel Git 연동으로 진행한다.
 
-### 현재 범위
+### 프로토타입 구현 당시 범위
 
 Supabase, Threads API, OAuth, 실제 AI 생성, 실제 게시·예약 작업은 연결하지 않는다. 로그인과 DB 저장도 아직 구현하지 않는다. 화면의 상태 변경은 브라우저 메모리에서만 유지되며 새로고침하면 초기 mock data로 돌아간다. 계정, 게시물, 수치와 시간은 예시 데이터다.
 
@@ -82,3 +82,36 @@ lint·TypeScript·프로덕션 빌드가 통과했다. 개발·프로덕션 로�
 ### Git 저장소 구조
 
 기존 GitHub 업로드는 `threads-duo-os/` 아래 기획 문서만 포함했다. 이 기존 폴더와 문서는 그대로 보존한다. 실행 가능한 Next.js 앱과 갱신한 문서는 저장소 루트에 두어 Vercel의 루트 빌드 대상이 되도록 한다. 루트 `MASTER_PLAN.html`이 정적 사본 동기화의 기준이다.
+
+## 2026-10-01 — Supabase Auth 1단계: 로컬 검증 완료
+
+이메일/비밀번호 로그인, 쿠키 세션, 로그인 사용자 이메일 표시와 현재 브라우저의 로그아웃을 구현했다. 사용자가 제공한 실제 Supabase URL·publishable 공개 키를 Git에서 제외된 `.env.local`에 설정했다. 로그인 실패·익명 접근 차단은 실제 브라우저 자동화로, 정상 로그인·이메일 표시·새로고침 유지·로그아웃·로그아웃 후 재접근 차단은 사용자 브라우저의 수동 확인과 제공 화면으로 검증했다. 설정이 없거나 세션 검증에 실패하면 `/`는 `/login`으로 이동한다. Dashboard를 볼 수 있는 데모 로그인 우회는 제공하지 않는다.
+
+- `/login`: 이메일·비밀번호 입력, 로그인 실패 오류와 연결 준비 안내. 로그인한 사용자는 `/`로 이동한다.
+- `/`: Proxy에서 세션을 갱신하고 페이지 서버에서 `getUser()`로 사용자를 확인한 뒤 Today Dashboard에 이메일을 표시한다.
+- 로그아웃: `signOut({ scope: "local" })`으로 현재 브라우저 세션을 종료하고 `/login`으로 이동한다.
+- `/MASTER_PLAN.html`: 기존대로 공개 정적 문서를 제공한다.
+- 계정·workspace·콘텐츠 큐·승인·초안·운영 수치는 계속 mock이다. DB 테이블·Storage·Threads API·AI·실제 예약/게시 기능은 추가하지 않았다.
+
+### Supabase에서 직접 준비할 항목
+
+1. Supabase 프로젝트의 **Connect**에서 Project URL과 **publishable key**를 가져온다. 키는 **Settings → API Keys**에서도 확인할 수 있다. 이 프로젝트는 publishable 공개 키만 사용한다. secret/service role key는 사용하지 않는다. [공식 API Keys 안내](https://supabase.com/docs/guides/getting-started/api-keys)
+2. **Authentication**에서 Email/Password 로그인을 활성화하고, **Users**에서 로그인에 사용할 테스트 사용자의 이메일·비밀번호를 직접 준비한다. Email 확인을 요구하는 프로젝트라면 테스트 사용자가 확인 완료 상태여야 한다. 회원가입·이메일 확인·비밀번호 재설정 UI는 이번 범위에 없다. [공식 Password Auth 안내](https://supabase.com/docs/guides/auth/passwords)
+3. 아래 명령으로 로컬 파일을 만들고 `.env.local`의 비어 있는 항목을 채운다. 이 파일은 Git에서 무시된다.
+
+```powershell
+Copy-Item .env.example .env.local
+```
+
+| 변수 | 설정할 값 |
+| --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | 실제 Project URL |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | 실제 publishable 공개 키 |
+
+`.env.example`에는 값이 없는 두 변수명만 있다. `.env.local`을 저장한 뒤 개발 서버를 재시작한다. `NEXT_PUBLIC_` 값은 브라우저 빌드에 포함되므로 비밀키나 사용자 토큰을 입력하면 안 된다. 로컬 Production 빌드를 확인할 때는 설정 변경 후 다시 build한다.
+
+### Auth 파일과 검증 상태
+
+`app/login/page.tsx`와 `components/login-form.tsx`는 로그인 화면, `components/session-controls.tsx`는 사용자 이메일과 로그아웃 버튼이다. `lib/supabase/client.ts`는 브라우저용, `lib/supabase/server.ts`는 요청별 서버용 클라이언트다. `proxy.ts`와 `lib/supabase/proxy.ts`는 `/`·`/login`의 세션 갱신과 접근 보호를 처리한다. 인증 경로는 동적 렌더링과 캐시 방지를 사용한다. [공식 SSR 안내](https://supabase.com/docs/guides/auth/server-side/nextjs)
+
+로컬 Chrome에서 로그인 표시, 입력 검증, 설정 누락 시 오류, 익명 `/` 접근 차단, 마스터플랜 보존을 확인했다. 실제 공개 설정 적용 후 잘못된 로그인 요청에 Supabase의 HTTP 400 `invalid_credentials` 응답과 화면 오류가 표시됐다. 사용자는 실제 계정의 Dashboard·이메일 표시·F5 후 로그인 유지, 로그아웃 → `/login` 이동, 이후 `/` 직접 접근 → `/login` 차단을 확인했다. 사용자 세션은 자동화 브라우저와 달라 정상 세션 흐름은 수동 검증으로 기록한다. lint·typecheck·production build 통과. 상세 결과는 `docs/TEST_NOTES.md`에 있다. 이번 Auth 변경은 로컬 작업만 수행했으며 GitHub push나 Vercel 재배포는 하지 않았다.

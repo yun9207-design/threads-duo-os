@@ -10,6 +10,7 @@ import {
   type PostStatus,
 } from "@/lib/mock-data";
 import { Icon, type IconName } from "./icon";
+import { SessionControls } from "./session-controls";
 
 const statusLabels: Record<PostStatus, string> = {
   scheduled: "예약됨",
@@ -38,7 +39,7 @@ function Avatar({
   );
 }
 
-export function TodayDashboard() {
+export function TodayDashboard({ userEmail }: { userEmail: string }) {
   const [posts, setPosts] = useState(initialPosts);
   const [accountFilter, setAccountFilter] = useState<AccountId | "all">("all");
   const [queueFilter, setQueueFilter] = useState<Filter>("scheduled");
@@ -175,10 +176,10 @@ export function TodayDashboard() {
             <Icon name="arrow" size={16} />
           </a>
           <div className="sidebar-profile">
-            <Avatar accountId="yun" />
+            <span className="avatar user-avatar" aria-hidden="true">{userEmail.slice(0, 1).toUpperCase()}</span>
             <div>
-              <strong>yun</strong>
-              <span>Workspace owner · 데모</span>
+              <strong className="profile-email" title={userEmail}>{userEmail}</strong>
+              <span>로그인 사용자</span>
             </div>
           </div>
         </div>
@@ -196,7 +197,7 @@ export function TodayDashboard() {
             </span>
             <div
               className="avatar-pair"
-              aria-label="워크스페이스 구성원 yun과 동생"
+              aria-label="예시 계정 yun과 동생"
             >
               <Avatar accountId="yun" small />
               <Avatar accountId="sibling" small />
@@ -204,6 +205,7 @@ export function TodayDashboard() {
             <span className="topbar-workspace">Duo Workspace</span>
           </div>
         </header>
+        <SessionControls email={userEmail} />
         <main id="main">
           <section className="page-heading" id="today">
             <div>

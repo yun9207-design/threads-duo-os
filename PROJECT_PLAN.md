@@ -33,4 +33,16 @@ Supabase와 Threads API는 연결하지 않는다. 로그인, 영속 저장, 실
 
 검증 완료: lint·TypeScript·production build 통과. 개발·프로덕션 로컬 서버에서 두 경로 HTTP 200, Chrome 화면과 mock 상호작용, 390px·320px 모바일 레이아웃과 마스터플랜 기존 탭·데모를 확인했다. 원본·정적 사본·HTTP 본문의 SHA256이 작업 전 마스터플랜과 일치했다.
 
-다음 최소 P0 단계는 Draft CRUD의 로컬 mock 동작이다. DB·외부 API 연결은 별도 단계에서 명세와 권한 경계를 확인한 뒤 진행한다.
+이후 P0 진행 상황과 다음 단계는 아래 Auth 기록을 기준으로 한다.
+
+## 2026-10-01 — Stage B 중 Supabase Auth 1단계 로컬 검증 완료
+
+`/login` 이메일/비밀번호 폼, 브라우저·서버 Supabase 클라이언트 분리, Proxy의 쿠키 세션 갱신, 서버 사용자 검증, Today의 사용자 이메일 표시와 로그아웃 코드를 구현했다. 인증되지 않은 `/` 요청은 `/login`으로 이동하며 `/MASTER_PLAN.html`은 공개 경로로 보존한다.
+
+사용자가 제공한 실제 URL·publishable 공개 키를 `.env.local`에 설정하고 개발 서버를 재시작했다. 실제 Auth에 잘못된 로그인 요청을 보내 HTTP 400 `invalid_credentials`와 화면 오류를 확인했다. `.env.example`에는 빈 변수명만 제공하고 `.env.local`과 환경별 local 파일은 Git에서 제외한다. 설정이 없으면 로그인을 우회하지 않고 연결 준비 안내를 표시한다.
+
+로컬 Chrome 자동화로 로그인 UI·입력 검증·설정 누락 오류·실제 잘못된 로그인 오류·익명 접근 차단·마스터플랜 보존을 확인했고 lint·typecheck·production build가 통과했다. 정상 로그인·사용자 이메일 표시는 사용자 제공 Dashboard 화면으로, F5 후 세션 유지와 로그아웃 후 `/login` 이동 및 `/` 재접근 차단은 사용자 수동 확인으로 검증했다. Auth 1단계 로컬 검증을 완료했으며 자동화가 사용자 세션을 직접 검사한 것으로 기록하지 않는다.
+
+Auth 외 Stage B 기능(users/workspaces/drafts/RLS/Storage), 회원가입·비밀번호 재설정·Google/Threads OAuth, AI API, 실제 예약·게시는 이번 범위에 없다. 기존 운영 데이터와 상호작용은 계속 mock이다. GitHub push·Vercel 배포는 수행하지 않았다.
+
+다음 권장 단계는 **별도 배포 작업으로 Vercel에 공개 환경변수를 설정하고 Auth 변경을 배포해 Production 흐름을 검증하는 것** 하나다. 현재 작업의 로컬 범위에는 포함하지 않으며 이번에는 실행하지 않았다.

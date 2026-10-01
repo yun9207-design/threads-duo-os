@@ -17,3 +17,7 @@ audit_logs(id, workspace_id, actor_profile_id, action, entity_type, entity_id, m
 위 스키마는 향후 Supabase 연결을 위한 설계로 유지한다. 이번 Next.js Today Dashboard 초기화에서는 DB, Supabase 클라이언트, migration, 테이블 생성, RLS 또는 Threads API 연결을 추가하지 않는다.
 
 사용자·계정·예약 큐·승인 상태·성과 수치는 로컬 mock data이며 실제 테이블 레코드가 아니다. UI 상태는 브라우저 메모리에서만 변경되고 새로고침하면 초기값으로 돌아간다. 실제 persistence 및 권한 모델 구현 여부는 별도 P0 단계에서 확인한다.
+
+## 2026-10-01 — Auth 1단계
+
+Supabase Auth의 이메일/비밀번호와 세션만 추가하고 실제 URL·공개 키로 로컬 Auth 흐름을 검증했다. 로그인 실패와 익명 차단은 자동화로, 정상 세션 흐름은 사용자 수동 확인과 제공 화면으로 검증했다. 위 애플리케이션 테이블·migration·RLS·Storage는 추가하지 않았고 운영 데이터는 계속 mock이다. 로그인 사용자 표시는 Auth에서 서버 검증한 이메일을 사용하며 `profiles`나 `workspaces` 테이블을 읽지 않는다.
