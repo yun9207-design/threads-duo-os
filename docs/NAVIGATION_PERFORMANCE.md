@@ -56,3 +56,60 @@ Chrome의 기존 로그인 세션에서 메뉴 클릭 시작부터 새 페이지
 초기 snapshot의 별도 02:34:19.705~19.965 구간은 Auth 1 + DB 13 HTTP였다. 같은 accounts 조회는 1개, 자신만의 membership 추가 조회는 제거됐다. 초기 요청은 여전히 인증/RLS를 거친다. 도쿄 내부에서 해당 DB 요청의 origin time은 13~43ms였다. 메뉴 클릭마다 이 초기 요청을 반복하지 않는다.
 
 첫 진단의 animation frame 기록은 Chrome의 백그라운드 프레임 제한 때문에 History에서 1012ms까지 늘었다. 프레임 시점과 실제 DOM commit을 혼동하지 않도록 진단 코드를 수정했고 최종 DOM commit 실측을 추가한다. 기존 사용자 화면과 라우팅 동작은 변경하지 않는다.
+
+## 최종 DOM commit 실측
+
+진단 commit `bc92e56` Production 배포 success. 기존 로그인 세션, 캐시 준비 상태에서 마지막 측정:
+
+| 이동 | 시작 UTC (자동화) | 완료 UTC (자동화) | 자동화 포함 ms | 실제 클릭 → DOM commit ms | Auth / DB HTTP |
+|---|---|---|---:|---:|---:|
+| Dashboard → Calendar | 02:39:50.818 | 02:39:50.931 | 113 | 17.0 | 0 / 0 |
+| Calendar → Queue | 02:39:50.931 | 02:39:51.042 | 111 | 15.7 | 0 / 0 |
+| Queue → History | 02:39:51.042 | 02:39:51.159 | 117 | 14.7 | 0 / 0 |
+| History → Composer | 02:39:51.159 | 02:39:52.280 | 1121 | 55.7 | 0 / 0 |
+| Composer → Planner | 02:39:52.280 | 02:39:52.595 | 315 | 63.4 | 0 / 0 |
+
+같은 방식의 자동화 전체 평균은 2641ms → 355ms(약 87% 감소). 실제 앱의 클릭 이벤트부터 DOM commit까지는 15~63ms. Composer 자동화 1121ms 중 클릭 전달 전 약 1030ms가 Chrome 백그라운드 자동화 대기였으며 앱 화면 commit은 55.7ms였다. 이전 측정에는 앱 내부 commit 진단이 없으므로 2641ms와 15~63ms를 직접 비교하지 않는다.
+
+02:39:50~54 UTC Supabase edge_logs: 요청 0. Browser Resource Timing API 요청 0. documentTimeOrigin은 모두 `1790908777577.6`으로 동일하다. 초기 로드와 TTL 갱신은 별도이며 인증/멤버십 검증을 유지한다.
+
+Production `/login` 200, snapshot API 익명 401/private no-store, MASTER_PLAN 200 및 원본 SHA256 동일. 추가 A/B 로그인, 기존 RLS/게시 기능 반복 테스트나 DB 변경을 수행하지 않았다. AI 기록·사용자 템플릿 변경 후에는 해당 리소스와 운영 데이터 캐시를 무효화해 다음 이동에서 새 데이터를 읽는다.
+
+## 변경 파일
+
+- app/(product)/accounts/page.tsx
+- app/(product)/analytics/page.tsx
+- app/(product)/bulk/page.tsx
+- app/(product)/calendar/page.tsx
+- app/(product)/categories/page.tsx
+- app/(product)/composer/page.tsx
+- app/(product)/history/page.tsx
+- app/(product)/layout.tsx
+- app/(product)/loading.tsx
+- app/(product)/page.tsx
+- app/(product)/planner/page.tsx
+- app/(product)/queue/page.tsx
+- app/(product)/recurring/page.tsx
+- app/api/product/route.ts
+- components/ai-composer.tsx
+- components/content-operations.tsx
+- components/product-app.tsx
+- components/product-data-provider.tsx
+- components/product-shell.tsx
+- docs/NAVIGATION_PERFORMANCE.md
+- docs/TEST_NOTES.md
+- lib/calendar-index.ts
+- lib/client-read-cache.ts
+- lib/content-operations-data.ts
+- lib/drafts.ts
+- lib/navigation-metrics.ts
+- lib/product-data.ts
+- lib/product-page.tsx
+- lib/product-snapshot.ts
+- lib/supabase/proxy.ts
+- lib/threads-insights.ts
+- lib/threads-publishing.ts
+- lib/workspaces.ts
+- proxy.ts
+- scripts/test-navigation-performance.mjs
+- vercel.json

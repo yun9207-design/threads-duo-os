@@ -434,3 +434,11 @@ workspace/RLS 단계에서 멈춘다. 다음 콘텐츠 기능은 시작하지 �
 사용자가 Production Chrome에서 A 로그인 성공을 확인했다. 현재 Chrome 자동 연결이 되지 않아 해당 세션의 정상 workspace 응답·로그아웃을 자동 검사한 것으로 기록하지 않는다. 이후 사용자가 추가 A/B 수동 재검증을 중단하고 기존 결과와 RLS 50개 통과 결과를 신뢰해 단계를 완료하라고 명시했다. 따라서 이전 실제 A/B 공동 조회 200(owner/member)·외부 ID 404·세션/로그아웃/익명 차단과 실제 Supabase DB 검사를 최종 권한 근거로 유지한다. 이번 Production 정상 로그인은 사용자 1회 확인, workspace HTTP smoke는 익명 401 차단 확인이며 추가 정상 A/B 전체 반복 검사를 수행하지 않았다.
 
 최종 `git status`/diff에는 배포 기록 문서 외 변경이 없었다. `npm run lint`, `npm run typecheck`, `npm run build`를 다시 실행해 모두 통과했다. 기존 Auth·Dashboard·MASTER_PLAN에 diff 없음, 기존 MD 삭제 없음, 현재 tracked MD 19개 모두 존재. 실제 환경변수·임시 검사 화면은 Git 제외/제거 상태다. 사용자 지정 검증 범위에 따라 Auth + workspace + RLS 기반 단계를 완료 처리하며 다음 단계는 실제 drafts DB CRUD다. drafts 구현은 이 배포 commit에 포함하지 않는다.
+
+## 2026-10-02 — 페이지 전환 성능
+
+일반 내부 이동의 document reload는 없었으나, page별 ProductApp 재마운트와 12~15개 Supabase 요청 대기가 있었다. 공유 layout, 세션별 TTL/in-flight 캐시, 병렬 workspace 조회, Calendar 인덱스와 hnd1 함수 지역을 적용했다. 디자인/CSS/DB migration/원본 MASTER_PLAN은 변경하지 않았다.
+
+Production 기존 세션의 5개 메뉴 이동: 같은 자동화 평균 2641ms → 355ms, 실제 클릭 이벤트 → DOM commit 15~63ms. 캐시가 준비된 이동은 Auth/DB HTTP 각 0회이며 documentTimeOrigin도 동일했다. 첫 로드와 TTL 갱신은 계속 인증/멤버십/RLS를 검증한다. 초기 snapshot은 Auth 1 + DB 13회, 해당 도쿄 DB 왕복은 13~43ms였다.
+
+lint/typecheck/build와 캐시·Calendar 5000개 항목 검사를 통과했다. 기존 A/B 로그인·RLS·게시 기능 테스트는 반복하지 않았다. [측정 방법·전후 표·변경 설명](NAVIGATION_PERFORMANCE.md)을 참고한다.

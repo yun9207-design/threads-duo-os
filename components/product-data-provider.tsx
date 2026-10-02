@@ -12,6 +12,7 @@ type Worker=Database["public"]["Tables"]["queue_worker_status"]["Row"]|null;
 export type ProductSnapshot={userId:string;email:string;workspace:DraftWorkspace;drafts:DraftRow[];connection:ThreadsConnection;worker:Worker;operations:OperationsData;performance:PerformanceData;referenceTime:string};
 type Store={snapshot:ProductSnapshot|null;error:string;refresh:()=>void;
   readResource:<T>(key:string,load:()=>Promise<T>,force?:boolean)=>Promise<T>;
+  invalidateResource:(key:string)=>void;
   setDrafts:Dispatch<SetStateAction<DraftRow[]>>;setOperations:Dispatch<SetStateAction<OperationsData>>;
   setPerformance:Dispatch<SetStateAction<PerformanceData>>;setConnection:Dispatch<SetStateAction<ThreadsConnection>>;setWorker:Dispatch<SetStateAction<Worker>>};
 const Context=createContext<Store|null>(null);
@@ -67,6 +68,7 @@ export function ProductDataProvider({children}:{children:React.ReactNode}){
   const setWorker=useCallback<Store["setWorker"]>(value=>update("worker",value),[update]);
   const refresh=useCallback(()=>{void read(current.current?"live":"initial",true).catch(e=>setError(e.message));},[read]);
   const readResource=useCallback(<T,>(key:string,load:()=>Promise<T>,force=false)=>cache.current.read("resource:"+key,120000,load,force),[]);
-  const value=useMemo(()=>({snapshot,error,refresh,readResource,setDrafts,setOperations,setPerformance,setConnection,setWorker}),[snapshot,error,refresh,readResource,setDrafts,setOperations,setPerformance,setConnection,setWorker]);
+  const invalidateResource=useCallback((key:string)=>{cache.current.invalidate("resource:"+key);cache.current.invalidate("operations");},[]);
+  const value=useMemo(()=>({snapshot,error,refresh,readResource,invalidateResource,setDrafts,setOperations,setPerformance,setConnection,setWorker}),[snapshot,error,refresh,readResource,invalidateResource,setDrafts,setOperations,setPerformance,setConnection,setWorker]);
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }

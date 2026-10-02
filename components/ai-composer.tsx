@@ -14,7 +14,7 @@ const asResult=(post:AiPostRow,drafts:DraftRow[]):Result=>{const draft=drafts.fi
   const at=draft?.scheduled_at?kstInput(draft.scheduled_at):"";return {...post,body:draft?.body??post.body,selected:!post.draft_id,date:at.slice(0,10),time:at.slice(11)||"10:00"};};
 
 export function AiComposer({base,initialMode="single",initialGeneration,initialBody,accountId,accountLabel,canPublish,drafts,referenceTime,onUse,onSaved,onBusy,categoryId}:Props){
-  const readResource=useProductData()?.readResource;
+  const shared=useProductData(),readResource=shared?.readResource;
   const [topic,setTopic]=useState(initialBody.split("\n")[0].slice(0,180));
   const [keyPoints,setKeyPoints]=useState("");const [audience,setAudience]=useState("");
   const [purpose,setPurpose]=useState<string>(AI_PURPOSES[0]),[tone,setTone]=useState<string>(AI_TONES[0]);
@@ -36,6 +36,7 @@ export function AiComposer({base,initialMode="single",initialGeneration,initialB
       ...(payload===undefined?{}:{headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)}),
       signal:AbortSignal.timeout(method==="POST"&&path===base+"/ai"?175000:140000)});
     const data=await response.json();
+    if(method!=="GET")shared?.invalidateResource(base+"/ai");
     if(!response.ok){if(data.draft)onSaved([data.draft]);throw new Error(data.error??"요청을 완료하지 못했습니다.");}return data;
   }
   useEffect(()=>{
