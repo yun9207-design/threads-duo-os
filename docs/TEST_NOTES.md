@@ -1,5 +1,19 @@
 # TEST NOTES
 
+## 2026-10-02 — P3 LIVE 운영과 성과 피드백
+
+기존 Auth/A·B 로그인/50개 RLS/이전 기능 전체 검사를 반복하지 않고 새 기능만 확인했다. 실제 Supabase에 P3 migration 5개를 적용했다. 현재 실제 DB의 Threads 계정/credential/외부 post·account snapshot은 0건이며 실제 Meta 인증·게시·Insights 성공으로 주장하지 않는다.
+
+- `scripts/test-threads-live.mjs` PASS: 격리 Postgres에서 workspace 암호화/credential 비공개/일회용 state, 기본 TEST·명시 LIVE, TEST의 최종 publish 호출 0회, 모의 LIVE ID 저장/중복 claim, 일시 오류 1/5/15분 최대 3회, 영구 오류·불확실한 final publish 재시도 차단/연결 해제. Meta transport는 모의다.
+- `scripts/test-threads-oauth.mjs` PASS: 공식 code form/long-lived/refresh/app-token→debug_token 계약, scope와 app ID 확인, 민감한 원문 에러 미노출. 실제 Meta 승인은 포함하지 않는다.
+- `scripts/test-threads-insights.mjs` PASS: 다섯 checkpoint, 지연된 24h 우선/이전 checkpoint 합치기, 단일 lease, 실제 0과 NULL 분리, snapshot client write 차단, 24h 표본·10/3 임계, 계정 timeseries/total_value 파싱. 외부 응답은 표본이다.
+- `scripts/test-threads-feedback.mjs` PASS: 원본 성과 근거와 AI 버전 보존, 3개 후속 결과를 기존 Queue에 원자적으로 연결/재조회. 브라우저에서 실제 OpenAI 후속 글 3개 생성 → 편집 → KST 자동 배분 → 전체 예약 → Queue 새로고침 유지 확인. 브라우저 성과 원본/DB는 **격리 표본**, AI 생성은 실제 OpenAI다. [화면 증거](screenshots/p3-followup-queue.png).
+- `scripts/test-csv-import.mjs` PASS: RFC4180/BOM/줄바꿈, 64KB/30행, 날짜/분류/계정/템플릿/중복/정상 행 선택, atomic rollback/저장 유지. 브라우저 preview 정상 1·오류 2 표시 → 정상 행만 저장 → Queue 재조회 유지 확인. [화면 증거](screenshots/p3-csv-queue.png).
+- Accounts 연결 준비/세 변수/TEST·LIVE 안내와 Analytics 수집 범위·Unavailable·패턴 표본 기준을 실제 브라우저에서 확인했다. 표시된 숫자는 격리 DB의 표본이며 Production에 가짜 Insights를 넣지 않았다.
+- 화면 검사 중 AI→Queue의 편집 버전을 undefined 파싱 값이 덮어쓰는 문제를 수정하고 서버 통합 검사로 확인했다. lint의 effect 동기 setState를 제거해 callback 결과를 server prop으로 넘겼다.
+- 최종 lint/typecheck/production build와 staged diff/브라우저 번들 비밀값 미포함 검사 PASS. 기존 MASTER_PLAN 원본·정적 사본과 모든 기존 MD를 보존한다. `.env.local`/검증 도구·fixture는 Git 제외다. main push 후 Vercel Git 배포 및 신규 경로의 자동 HTTP smoke를 사용하며 수동 로그인은 요청하지 않는다.
+- Supabase advisor의 새 private 테이블 RLS 무정책 INFO는 client 권한 없는 의도적 차단이다. 기존 Auth password 보호 안내는 이전 설정이며 이번 범위에서 변경하지 않았다. 실제 연결/배포 경계는 `THREADS_LIVE.md`를 따른다.
+
 ## 2026-10-02 — Threads 자동운영 P2
 
 기존 Auth/A·B 로그인/기존 RLS/게시 엔진 반복 검사를 하지 않고 새 운영 기능만 확인했다.

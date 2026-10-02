@@ -1,5 +1,9 @@
 # DB SCHEMA
 
+## P3 추가 구조
+
+실제 적용 migration 5개와 상세 권한은 `docs/THREADS_LIVE.md`를 따른다. `threads_accounts`에 연결/만료/갱신/권한/health/TEST·LIVE metadata, `drafts`에 게시 단계/모드/요청/오류 코드/제한 재시도/Needs Attention/TEST 완료 및 CSV template provenance를 추가했다. private credential은 암호화 envelope, OAuth state는 hash/만료/사용 여부만 저장한다. nullable `threads_post_insight_snapshots`(+1/6/24/72/168h)와 `account_insight_snapshots`(날짜/수집 시각), private 수집 job/lease를 분리한다. 공개 snapshot은 workspace 멤버 SELECT 전용이며 서버 capability만 결과를 기록한다. `content_plans.performance_feedback`은 기본 OFF, AI 생성 parameters에 실제 원본 draft/snapshot/분석 근거를 보존한다. 기존 Auth/workspace schema와 drafts CRUD를 유지한다.
+
 ## 자동운영 P2 추가 구조
 
 `content_categories`와 `drafts.category_id` 복합 FK, JSON 계획 항목을 가진 `content_plans`, 규칙인 `recurring_schedules`와 실제 글 연결인 `recurring_occurrences`, nullable Meta 지표를 위한 `draft_insights`를 추가했다. membership RLS/컬럼별 최소 권한을 적용하며 기존 테이블과 데이터를 보존한다. 기존 저장 함수를 감싼 `save_categorized_posts`, 원자적 `place_content_plan`을 사용한다. 상세: `docs/CONTENT_OPERATIONS.md`.

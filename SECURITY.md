@@ -1,5 +1,11 @@
 # SECURITY
 
+## P3 추가 경계
+
+Meta App Secret/code 교환/long-lived token/refresh/debug_token은 서버에서 처리한다. OAuth는 owner + 만료 10분의 일회용 state hash + HttpOnly/Secure/SameSite 쿠키를 검증한다. 사용자 토큰은 workspace/AAD로 묶은 AES-256-GCM envelope를 private schema에 저장하며 브라우저/로그/에러/localStorage에 원문을 반환하지 않는다. 기존 server capability를 재사용하고 service-role key는 사용하지 않는다. capability 교체 시 재연결이 필요하다.
+
+계정 연결·재연결은 TEST이며 owner의 `LIVE` 명시 입력/연결/권한/만료 확인 후에만 실제 게시한다. 기존 claim/lock/idempotence를 유지하고 영구 오류·불확실한 publish 응답은 자동 재시도하지 않는다. 안전한 일시 오류만 최대 3회 재시도하며 이후 Needs Attention이다. Insights는 member SELECT 전용, private 수집 job/credential/state의 client 권한은 회수되어 의도적으로 정책이 없다. CSV는 같은 Origin, 크기/행/identity/중복 검증과 원자적 기존 RPC만 사용한다. 기존 Auth 정책은 변경하지 않는다. 상세: `docs/THREADS_LIVE.md`.
+
 ## Threads AI P1 추가 경계
 
 - AI 라우트는 기존 서버 확인 사용자와 workspace 접근 검사를 재사용한다. GET/POST/PATCH는 실제 세션으로 Supabase에 연결하며 새 service-role 키·로그인 우회·공개 생성 endpoint를 만들지 않는다.

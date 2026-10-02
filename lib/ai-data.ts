@@ -55,7 +55,7 @@ export async function aiOverview(workspaceId:string){
   const published=new Set(outcomes.data!.filter((draft)=>draft.publication_status==="published").map((draft)=>draft.id));
   return {configured:!!await aiCredential(workspaceId,client),jobs:jobs.data!.filter(job=>(job.parameters as Record<string,unknown>)?.operationKind!=="planner").map((job)=>({...job,published_count:posts.data!.filter((post)=>post.generation_id===job.id&&post.draft_id&&published.has(post.draft_id)).length})),templates:templates.data!};
 }
-export async function generateAi(workspaceId:string,value:unknown,operationInstruction=""){
+export async function generateAi(workspaceId:string,value:unknown,operationInstruction="",provenance?:Record<string,Json>){
   const input=parseAiInput(value),client=await aiClient(workspaceId);
   const credential=await aiCredential(workspaceId,client);
   if(!credential)throw new AiProviderError("AI 연결 설정이 필요합니다. 관리자에게 서버 API 키 설정을 요청해 주세요.",503);
@@ -69,9 +69,9 @@ export async function generateAi(workspaceId:string,value:unknown,operationInstr
     if(!source.data)throw new DraftInputError("다듬을 글을 찾을 수 없습니다.");}
   const {requestId,...parameters}=input;
   instruction+="\n"+operationInstruction;
-  const hash=createHash("sha256").update(JSON.stringify({...parameters,operationInstruction})).digest("hex");
+  const hash=createHash("sha256").update(JSON.stringify({...parameters,operationInstruction,provenance})).digest("hex");
   const reservation=await client.rpc("reserve_ai_generation",{p_workspace_id:workspaceId,p_id:requestId,p_hash:hash,
-    p_parameters:{...parameters,...(operationInstruction?{operationKind:operationInstruction.startsWith("주간 콘텐츠 기획")?"planner":"planner_posts"}:{})} as Json,p_model:aiModel()});if(reservation.error)aiDbError(reservation.error.code);
+    p_parameters:{...parameters,...(operationInstruction?{operationKind:operationInstruction.startsWith("주간 콘텐츠 기획")?"planner":"planner_posts"}:{}),...provenance} as Json,p_model:aiModel()});if(reservation.error)aiDbError(reservation.error.code);
   const reserved=reservation.data as {claimed:boolean;job:AiGenerationRow};
   if(!reserved.claimed){
     if(reserved.job.status==="completed")return {job:reserved.job,posts:await listAiPosts(workspaceId,requestId)};
@@ -109,7 +109,7 @@ export async function promoteAiPosts(workspaceId:string,value:unknown){
     if(typeof id!=="string"||!isUuid(id))throw new DraftInputError("글 ID를 확인해 주세요.");
     const parsed=parsePostInput(post);
     if(parsed.draftId)throw new DraftInputError("AI 글 ID로 저장해 주세요.");
-    return {id,expectedUpdatedAt:parseDeleteInput({expectedUpdatedAt}),draftUpdatedAt:draftUpdatedAt?parseDeleteInput({expectedUpdatedAt:draftUpdatedAt}):null,...parsed};
+    return {...parsed,id,expectedUpdatedAt:parseDeleteInput({expectedUpdatedAt}),draftUpdatedAt:draftUpdatedAt?parseDeleteInput({expectedUpdatedAt:draftUpdatedAt}):null};
   });
   if(new Set(posts.map((item)=>item.id)).size!==posts.length||posts.some((item)=>item.mode==="now")&&posts.length!==1)throw new DraftInputError("즉시 게시는 글 하나만 선택해 주세요.");
   const client=await aiClient(workspaceId),result=await client.rpc("save_categorized_posts",{p_workspace_id:workspaceId,p_posts:posts as Json,p_ai:true});

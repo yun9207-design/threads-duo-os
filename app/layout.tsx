@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "./product.css";
 import "./content-operations.css";
+import "./threads-live.css";
 
 export const metadata: Metadata = {
   title: "Threads Pro · Threads Duo OS",

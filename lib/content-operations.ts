@@ -3,7 +3,7 @@ import { kstInput,kstInputToIso } from "./draft-scheduling";
 import type { DraftRow,AiPostRow } from "./supabase/database.types";
 export type Category={id:string;workspace_id:string;name:string;color:string;archived_at:string|null;updated_at:string};
 export type PlanItem={id:string;topic:string;purpose:string;categoryId:string|null;day:string;body:string;aiPostId?:string;scheduledAt?:string;draftId?:string};
-export type ContentPlan={id:string;workspace_id:string;request_id:string;business:string;goal:string;audience:string;start_date:string;end_date:string;target_count:number;mix:Record<string,number>;items:PlanItem[];status:"planning"|"ready"|"scheduled";updated_at:string;created_at:string};
+export type ContentPlan={id:string;workspace_id:string;request_id:string;business:string;goal:string;audience:string;start_date:string;end_date:string;target_count:number;mix:Record<string,number>;items:PlanItem[];status:"planning"|"ready"|"scheduled";updated_at:string;created_at:string;performance_feedback?:boolean};
 export type RecurringSchedule={id:string;workspace_id:string;name:string;days:number[];time_of_day:string;category_id:string|null;template_id:string;content_type:string;enabled:boolean;start_date:string;end_date:string|null;updated_at:string};
 export type OperationsData={categories:Category[];plans:ContentPlan[];recurrences:RecurringSchedule[];aiPosts:Pick<AiPostRow,"draft_id">[];templates?:import("./supabase/database.types").ContentTemplateRow[];accounts?:import("./supabase/database.types").ThreadsAccountRow[]};
 export const DEFAULT_MIX:Record<string,number>={"정보":30,"공감":20,"질문":20,"제품":15,"홍보":5,"경험":10};

@@ -1,0 +1,20 @@
+"use client";
+import {useState} from "react";
+import Link from "next/link";
+import {CSV_MAX_BYTES,type CsvRow} from "@/lib/csv-import";
+import type {DraftRow} from "@/lib/supabase/database.types";
+export function CsvImport({base,onSaved,onBusy}:{base:string;onSaved:(rows:DraftRow[])=>void;onBusy:(busy:boolean)=>void}){
+ const [csv,setCsv]=useState(""),[rows,setRows]=useState<CsvRow[]>([]),[selected,setSelected]=useState<number[]>([]),[busy,setBusy]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState("");
+ function change(value:string){setCsv(value);setRows([]);setSelected([]);setNotice("");setError("");}
+ async function action(kind:"preview"|"import"){if(busy)return;setBusy(true);onBusy(true);setError("");setNotice("");try{const response=await fetch(base+"/import",{method:"POST",credentials:"same-origin",cache:"no-store",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:kind,csv,...(kind==="import"?{rows:selected}:{})}),signal:AbortSignal.timeout(30000)});const result=await response.json();if(!response.ok)throw Error(result.error??"CSV를 등록하지 못했습니다.");
+ if(kind==="preview"){setRows(result.rows);setSelected(result.rows.filter((r:CsvRow)=>!r.errors.length).map((r:CsvRow)=>r.row));}
+ else{onSaved(result.drafts);setRows([]);setSelected([]);setCsv("");setNotice(result.drafts.length+"개 글을 저장했습니다. 예약시간이 있는 글은 Queue에서 확인하세요.");}}
+ catch(e){setError(e instanceof Error?e.message:"CSV를 확인해 주세요.");}finally{setBusy(false);onBusy(false);}}
+ return <section className="pro-card"><div className="pro-card-title"><div><span className="pro-eyebrow">CSV IMPORT</span><h2>준비한 콘텐츠를 가져오세요</h2></div><span>UTF-8 · 최대 64 KB / 30개</span></div>
+ <p className="pro-help">필수 열 content · 선택 열 category, scheduled_at, account, template. 예약시간은 KST 2026-10-15 10:00 또는 시간대가 있는 ISO 형식입니다. 예약시간이 비어 있으면 임시저장합니다. 템플릿은 출처로 기록하며 본문을 자동 변경하지 않습니다.</p>
+ <label className="pro-label" htmlFor="csv-file">CSV 파일 선택</label><input id="csv-file" type="file" accept=".csv,text/csv" disabled={busy} onChange={async e=>{const file=e.target.files?.[0];if(!file)return;if(file.size>CSV_MAX_BYTES){setError("CSV는 64 KB 이하여야 합니다.");return;}try{change(new TextDecoder("utf-8",{fatal:true}).decode(await file.arrayBuffer()));}catch{setError("UTF-8 CSV 파일을 읽지 못했습니다.");}}}/>
+ <label className="pro-label" htmlFor="csv-text">CSV 내용</label><textarea id="csv-text" rows={5} value={csv} disabled={busy} onChange={e=>change(e.target.value)} placeholder={'content,category,scheduled_at,account,template\n"녹음 전 체크할 한 가지",정보,2026-10-15 10:00,,info'}/>
+ <button className="pro-button ghost" disabled={busy||!csv.trim()} onClick={()=>action("preview")}>{busy?"확인 중…":"등록 미리보기"}</button>{error&&<p className="pro-feedback error" role="alert">{error}</p>}{notice&&<p className="pro-feedback success" role="status">{notice}</p>}
+ {!!rows.length&&<><div className="pro-card-title"><h3>Import Preview · 정상 {rows.filter(r=>!r.errors.length).length} / 오류 {rows.filter(r=>r.errors.length).length}</h3><button disabled={busy} onClick={()=>setSelected(rows.filter(r=>!r.errors.length).map(r=>r.row))}>정상 행 전체 선택</button></div><div className="pro-table-wrap"><table className="pro-table p3-csv-preview"><thead><tr><th>선택 / 행</th><th>본문</th><th>카테고리 / 계정 / 템플릿</th><th>예약 / 오류</th></tr></thead><tbody>{rows.map(r=><tr key={r.row}><td><label><input type="checkbox" aria-label={"CSV "+r.row+"행 선택"} disabled={busy||!!r.errors.length} checked={selected.includes(r.row)} onChange={e=>setSelected(s=>e.target.checked?[...s,r.row]:s.filter(n=>n!==r.row))}/> {r.row}행</label></td><td><p>{r.content}</p></td><td>{r.category||"미분류"}<small>{r.account||"기본 계정"} · {r.template||"템플릿 없음"}</small></td><td>{r.scheduled_at||"임시저장"}{r.errors.map(message=><p className="pro-inline-error" key={message}>{message}</p>)}</td></tr>)}</tbody></table></div><div className="pro-row-actions"><button className="pro-button primary" disabled={busy||!selected.length} onClick={()=>action("import")}>선택한 정상 {selected.length}개 저장</button><Link href="/queue">Queue 확인 →</Link></div></>}
+ </section>;
+}

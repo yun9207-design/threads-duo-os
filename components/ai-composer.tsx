@@ -95,7 +95,7 @@ export function AiComposer({base,initialMode="single",initialGeneration,initialB
       const saved=data.draft?[data.draft]:data.drafts;onSaved(saved);
       const updated=new Map<string,AiPostRow>(data.posts.map((item:AiPostRow)=>[item.id,item]));
       setResults((rows)=>rows.map((item)=>updated.has(item.id)?{...item,...updated.get(item.id)!,selected:false}:item));
-      setNotice(items.length+"개 글을 "+(intent==="schedule"?"예약 큐에 등록했습니다.":intent==="now"?"Threads에 게시했습니다.":"Composer에 임시저장했습니다."));
+      setNotice(items.length+"개 글을 "+(intent==="schedule"?"예약 큐에 등록했습니다.":intent==="now"?(saved.every((draft:DraftRow)=>draft.publication_status==="published")?"Threads에 게시했습니다.":"TEST에서 컨테이너 준비까지 완료했습니다. 실제 게시하지 않았습니다."):"Composer에 임시저장했습니다."));
     });
   }
   async function saveTemplate(){

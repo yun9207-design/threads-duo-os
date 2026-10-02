@@ -7,6 +7,10 @@ import { SessionControls } from "@/components/session-controls";
 import { DraftApprovalHistory } from "@/components/draft-approval-history";
 import { AiComposer } from "@/components/ai-composer";
 import {OperationsPanel} from "@/components/content-operations";
+import {ThreadsAccounts} from "@/components/threads-accounts";
+import {ThreadsPerformance} from "@/components/threads-performance";
+import {CsvImport} from "@/components/csv-import";
+import type {PerformanceData} from "@/lib/threads-performance";
 import type {OperationsData} from "@/lib/content-operations";
 import type { DraftWorkspace } from "@/lib/drafts";
 import type { ThreadsConnection } from "@/lib/threads-publishing";
@@ -31,6 +35,9 @@ const navigation: {view:ProductView;href:string;label:string;icon:IconName}[]=[
 const normalize=(value:string)=>value.trim().replace(/\s+/g," ").toLowerCase();
 const isLocked=(draft:DraftRow)=>draft.publication_status==="published"||draft.publication_status==="publishing"||!draft.publish_retryable;
 function badge(draft:DraftRow){
+  if(draft.publish_stage==="test_completed")return {text:"TEST 완료 · 미게시",className:"warning"};
+  if(draft.publish_needs_attention)return {text:"Needs Attention",className:"danger"};
+  if(draft.publish_next_retry_at)return {text:"재시도 대기",className:"warning"};
   if(draft.publication_status==="published")return {text:"게시 성공",className:"success"};
   if(draft.publication_status==="failed")return {text:"게시 실패",className:"danger"};
   if(draft.publication_status==="publishing")return {text:"게시 중",className:"violet"};
@@ -40,13 +47,14 @@ function Status({draft}:{draft:DraftRow}){const value=badge(draft);return <span 
 const time=(value:string|null)=>value?scheduledDate(value):"—";
 type BulkItem={id:string;body:string;date:string;time:string};
 
-export function ProductApp({view,email,workspace,initialDrafts,initialConnection,worker,referenceTime,draftId,copyId,initialSchedule=false,initialWritingTab="manual",initialAiGeneration,initialOperations,initialFill}:{
+export function ProductApp({view,email,workspace,initialDrafts,initialConnection,worker,referenceTime,draftId,copyId,initialSchedule=false,initialWritingTab="manual",initialAiGeneration,initialOperations,initialPerformance={posts:[],accounts:[],truncated:false},initialFill,initialConnectionOutcome}:{
   view:ProductView;email:string;workspace:DraftWorkspace;initialDrafts:DraftRow[];initialConnection:ThreadsConnection;
   worker:Worker;referenceTime:string;draftId?:string;copyId?:string;initialSchedule?:boolean;initialWritingTab?:"manual"|"ai"|"multiple";initialAiGeneration?:string;
-  initialOperations:OperationsData;initialFill?:boolean;
+  initialOperations:OperationsData;initialPerformance?:PerformanceData;initialFill?:boolean;initialConnectionOutcome?:string;
 }){
   const [drafts,setDrafts]=useState(initialDrafts);
   const [operations,setOperations]=useState(initialOperations);
+  const [performance,setPerformance]=useState(initialPerformance);
   const [categoryFilter,setCategoryFilter]=useState("");
   const [connection,setConnection]=useState(initialConnection);
   const [workerState,setWorkerState]=useState(worker);
@@ -67,7 +75,6 @@ export function ProductApp({view,email,workspace,initialDrafts,initialConnection
   const [queueFilter,setQueueFilter]=useState("all");
   const [historyFilter,setHistoryFilter]=useState("all");
   const [showHidden,setShowHidden]=useState(false);
-  const [setupOpen,setSetupOpen]=useState(false);
   const [deleteConfirmation,setDeleteConfirmation]=useState<string|null>(null);
   const [now,setNow]=useState(referenceTime);
   const [bulk,setBulk]=useState<BulkItem[]>([{id:"initial",body:"",date:"",time:"09:00"}]);
@@ -76,6 +83,13 @@ export function ProductApp({view,email,workspace,initialDrafts,initialConnection
   const [bulkGap,setBulkGap]=useState(60);
   useEffect(()=>{const timer=setInterval(()=>setNow(new Date().toISOString()),30000);return()=>clearInterval(timer);},[]);
   const base="/api/workspaces/"+workspace.workspace.id;
+  useEffect(()=>{
+    if(!["dashboard","analytics"].includes(view))return;
+    const controller=new AbortController(),timer=setInterval(async()=>{
+      if(document.visibilityState!=="visible")return;
+      try{const response=await fetch(base+"/performance",{cache:"no-store",credentials:"same-origin",signal:AbortSignal.any([controller.signal,AbortSignal.timeout(15000)])});if(response.ok&&!controller.signal.aborted)setPerformance(await response.json());}catch{}
+    },60000);return()=>{controller.abort();clearInterval(timer);};
+  },[base,view]);
   useEffect(()=>{
     if(!["dashboard","queue","history"].includes(view))return;
     const controller=new AbortController();
@@ -98,11 +112,11 @@ export function ProductApp({view,email,workspace,initialDrafts,initialConnection
   const published=drafts.filter((draft)=>draft.publication_status==="published");
   const queueEntries=drafts.filter((draft)=>draft.scheduled_at).sort((a,b)=>Date.parse(a.scheduled_at!)-Date.parse(b.scheduled_at!));
   const failures=drafts.filter((draft)=>draft.publication_status==="failed");
-  const history=drafts.filter((draft)=>["published","failed"].includes(draft.publication_status))
+  const history=drafts.filter((draft)=>["published","failed"].includes(draft.publication_status)||draft.publish_stage==="test_completed")
     .sort((a,b)=>Date.parse(b.published_at??b.publish_started_at??b.updated_at)-Date.parse(a.published_at??a.publish_started_at??a.updated_at));
   const today=kstInput(now).slice(0,10);
   const todayPublished=published.filter((draft)=>draft.published_at&&kstInput(draft.published_at).slice(0,10)===today).length;
-  const next=queue.find((draft)=>draft.publication_status==="unpublished");
+  const next=queue.find((draft)=>draft.publication_status==="unpublished"&&draft.publish_stage!=="test_completed");
   const duplicates=body.trim()?drafts.filter((draft)=>draft.id!==editing?.id&&normalize(draft.body)===normalize(body)):[];
   const locked=!!editing&&isLocked(editing);
   const savedDrafts=drafts.filter((draft)=>!draft.scheduled_at&&draft.publication_status==="unpublished");
@@ -142,22 +156,16 @@ export function ProductApp({view,email,workspace,initialDrafts,initialConnection
         setAiSource(response.posts[0]??aiSource);result={draft:response.draft??response.drafts[0]};}
       else result=await request(base+"/posts","POST",payload);
       replaceDraft(result.draft);setEditing(result.draft);setBody(result.draft.body);
-      setNotice(intent==="draft"?"임시저장했습니다. 나중에 이어서 작성할 수 있어요.":intent==="schedule"?"예약 큐에 등록했습니다. 지정 시간부터 자동 게시를 시도합니다.":"Threads에 게시했습니다.");
+      setNotice(intent==="draft"?"임시저장했습니다. 나중에 이어서 작성할 수 있어요.":intent==="schedule"?"예약 큐에 등록했습니다. 지정 시간부터 자동 게시를 시도합니다.":result.draft.publish_stage==="test_completed"?"TEST 완료 · 실제 게시 없이 준비를 확인했습니다.":"Threads에 게시했습니다.");
     });
   }
   async function publish(draft:DraftRow){
     await action(async()=>{const result=await request(base+"/drafts/"+draft.id+"/publish","POST",{expectedUpdatedAt:draft.updated_at});
-      replaceDraft(result.draft);setNotice("게시가 완료되었습니다. History에서 결과를 확인하세요.");});
+      replaceDraft(result.draft);setNotice(result.draft.publish_stage==="test_completed"?"TEST 완료 · 실제 게시되지 않았습니다.":"게시가 완료되었습니다. History에서 결과를 확인하세요.");});
   }
   async function mutate(draft:DraftRow,kind:"cancel"|"hide"|"show"){
     await action(async()=>{const result=await request(base+"/posts/"+draft.id,"PATCH",{action:kind,expectedUpdatedAt:draft.updated_at});
       replaceDraft(result.draft);setNotice(kind==="cancel"?"예약을 취소했습니다. 글은 임시 글 목록에 보존됩니다.":kind==="hide"?"게시 내역을 숨겼습니다. 숨긴 내역 보기에서 복구할 수 있어요.":"게시 내역을 다시 표시합니다.");});
-  }
-  async function connect(){
-    if(!connection.configured){setSetupOpen(true);return;}
-    await action(async()=>{try{const result=await request(base+"/threads","POST",{});setConnection({...connection,account:result.account,error:""});
-      setAccountId(result.account.id);setNotice("Threads 계정을 확인했습니다. 이제 게시할 수 있어요.");}
-      catch(failure){setConnection((value)=>({...value,error:failure instanceof Error?failure.message:"계정 확인 실패"}));throw failure;}});
   }
   async function deleteDraft(draft:DraftRow){
     if(deleteConfirmation!==draft.id){setDeleteConfirmation(draft.id);return;}
@@ -203,8 +211,9 @@ export function ProductApp({view,email,workspace,initialDrafts,initialConnection
       {error&&<div className="pro-feedback error" role="alert"><Icon name="warning" size={18}/>{error}</div>}
       {notice&&<div className="pro-feedback success" role="status"><Icon name="check" size={18}/>{notice}</div>}
       {!canPublish&&view!=="accounts"&&<div className="pro-connection-banner"><div><strong>Meta 계정 연결이 필요해요.</strong><p>글 작성과 예약은 지금 시작할 수 있습니다. 실제 게시는 계정 연결 후 실행됩니다.</p></div><Link href="/accounts">계정 연결 <Icon name="arrow" size={16}/></Link></div>}
+      {["dashboard","analytics"].includes(view)&&<ThreadsPerformance view={view as "dashboard"|"analytics"} base={base} data={performance} drafts={drafts} categories={operations.categories} connection={connection} now={now} onChange={setPerformance}/>}
 
-      {["dashboard","calendar","planner","recurring","categories","analytics"].includes(view)&&<OperationsPanel key={view} view={view} base={base} data={operations} drafts={drafts} now={now} accountId={accountId} accountLabel={accountLabel} onChange={setOperations} onDrafts={rows=>setDrafts(items=>[...rows,...items.filter(i=>!rows.some(row=>row.id===i.id))])} initialFill={initialFill}/>}
+      {["dashboard","calendar","planner","recurring","categories","analytics"].includes(view)&&<OperationsPanel key={view} view={view} base={base} data={operations} performance={performance} drafts={drafts} now={now} accountId={accountId} accountLabel={accountLabel} onChange={setOperations} onDrafts={rows=>setDrafts(items=>[...rows,...items.filter(i=>!rows.some(row=>row.id===i.id))])} initialFill={initialFill}/>}
       {view==="dashboard"&&<>
         <section className="pro-stats" aria-label="운영 현황">{([
           ["오늘 게시",todayPublished,"한국 시간 오늘", "pen"], ["오늘 게시 예정",queue.filter((draft)=>draft.publication_status==="unpublished"&&kstInput(draft.scheduled_at!).slice(0,10)===today).length,"오늘 게시를 기다리는 글","calendar"],
@@ -227,6 +236,7 @@ export function ProductApp({view,email,workspace,initialDrafts,initialConnection
       {view==="composer"&&<div className="pro-writing-tabs" role="tablist" aria-label="글 작성 방식">{([["manual","직접 작성"],["ai","AI 작성"],["multiple","대량 생성"]] as const).map(([value,label])=>
         <button key={value} role="tab" aria-selected={writingTab===value} disabled={busy} className={writingTab===value?"selected":""} onClick={()=>setWritingTab(value)}>{value!=="manual"&&<Icon name="sparkle" size={16}/>} {label}</button>)}</div>}
       {view==="composer"&&<div className="pro-card ops-composer-category"><label htmlFor="composer-category">콘텐츠 카테고리</label><select id="composer-category" value={categoryId} disabled={busy||locked} onChange={e=>setCategoryId(e.target.value)}><option value="">미분류</option>{operations.categories.filter(c=>!c.archived_at||c.id===categoryId).map(c=><option key={c.id} value={c.id} disabled={!!c.archived_at}>{c.name}{c.archived_at?" (보관)":""}</option>)}</select></div>}
+      {["composer","queue"].includes(view)&&<div className={"p3-mode-banner "+(account?.publishing_mode==="LIVE"?"live":"")}><strong>{account?.publishing_mode??"TEST"}</strong> · {account?.publishing_mode==="LIVE"?"즉시 게시와 예약 실행이 실제 Threads에 게시됩니다.":"실제 게시 직전에 멈추는 테스트 모드입니다. LIVE 전환은 Accounts에서 진행하세요."}</div>}
       {view==="composer"&&writingTab!=="manual"&&<AiComposer key={writingTab} base={base} initialMode={writingTab==="multiple"?"multiple":"single"} initialGeneration={initialAiGeneration} categoryId={categoryId}
         initialBody={body} accountId={accountId} accountLabel={accountLabel} canPublish={canPublish} drafts={drafts} referenceTime={now}
         onBusy={setBusy} onSaved={(rows)=>setDrafts((items)=>[...rows,...items.filter((item)=>!rows.some((row)=>row.id===item.id))])}
@@ -268,9 +278,9 @@ export function ProductApp({view,email,workspace,initialDrafts,initialConnection
       {view==="queue"&&<>
         <div className="pro-queue-summary"><span><b>{queue.length}</b>개 글이 큐에 있어요</span><span className={"pro-badge "+(canPublish&&workerFresh?"success":"warning")}>{canPublish?(workerFresh?"자동 게시 운영 중":"실행기 상태 확인 필요"):"계정 연결 후 자동 게시"}</span>
           <button disabled={busy} onClick={()=>action(async()=>{await refresh();setNotice("최신 큐를 불러왔습니다.");})}>새로고침</button></div>
-        <section className="pro-card"><div className="pro-tabs">{[["all","전체"],["unpublished","게시 대기"],["publishing","게시 중"],["published","성공"],["failed","실패"]].map(([key,label])=><button key={key} className={queueFilter===key?"selected":""} onClick={()=>setQueueFilter(key)}>{label}</button>)}</div>
+        <section className="pro-card"><div className="pro-tabs">{[["all","전체"],["unpublished","게시 대기"],["publishing","게시 중"],["published","성공"],["failed","실패"],["test","TEST"]].map(([key,label])=><button key={key} className={queueFilter===key?"selected":""} onClick={()=>setQueueFilter(key)}>{label}</button>)}</div>
           <div className="pro-table-wrap"><table className="pro-table"><thead><tr><th>게시 예정</th><th>계정 / 본문</th><th>상태</th><th>관리</th></tr></thead><tbody>
-            {queueEntries.filter((draft)=>(!categoryFilter||draft.category_id===categoryFilter)&&(queueFilter==="all"||draft.publication_status===queueFilter)).map((draft)=><tr key={draft.id}><td><strong>{time(draft.scheduled_at)}</strong><small>KST{draft.publication_status==="unpublished"&&Date.parse(draft.scheduled_at!)<Date.parse(now)?" · 실행 대기":""}</small></td>
+            {queueEntries.filter((draft)=>(!categoryFilter||draft.category_id===categoryFilter)&&(queueFilter==="all"||queueFilter==="test"&&draft.publish_stage==="test_completed"||queueFilter!=="test"&&draft.publish_stage!=="test_completed"&&draft.publication_status===queueFilter)).map((draft)=><tr key={draft.id}><td><strong>{time(draft.scheduled_at)}</strong><small>KST{draft.publication_status==="unpublished"&&Date.parse(draft.scheduled_at!)<Date.parse(now)?" · 실행 대기":""}</small></td>
               <td><small>{accountLabel} · {operations.categories.find(c=>c.id===draft.category_id)?.name??"미분류"}</small><p>{draft.body}</p>{draft.publish_error&&<span className="pro-inline-error">{draft.publish_error}</span>}</td><td><Status draft={draft}/><small>{draft.auto_publish?"자동 게시":"수동 예약"}</small></td>
               <td><div className="pro-row-actions"><Link aria-disabled={isLocked(draft)} href={"/composer?draft="+draft.id}>수정</Link><button disabled={busy||isLocked(draft)} onClick={()=>mutate(draft,"cancel")}>취소</button>
                 <button className="accent" disabled={busy||isLocked(draft)||!canPublish} onClick={()=>publish(draft)}>즉시 게시</button></div></td></tr>)}
@@ -278,12 +288,12 @@ export function ProductApp({view,email,workspace,initialDrafts,initialConnection
           {!queueEntries.length&&<div className="pro-empty"><Icon name="calendar" size={30}/><h3>예약한 글이 아직 없어요.</h3><p>글을 작성하고 게시할 날짜와 시간을 지정해 보세요.</p><Link href="/composer?mode=schedule">첫 예약 만들기 <Icon name="arrow" size={14}/></Link></div>}
         </section></>}
 
-      {view==="history"&&<section className="pro-card"><div className="pro-card-title"><div className="pro-tabs">{[["all","전체"],["published","성공"],["failed","실패"]].map(([key,label])=><button key={key} className={historyFilter===key?"selected":""} onClick={()=>setHistoryFilter(key)}>{label}</button>)}</div>
+      {view==="history"&&<section className="pro-card"><div className="pro-card-title"><div className="pro-tabs">{[["all","전체"],["published","성공"],["failed","실패"],["test","TEST"]].map(([key,label])=><button key={key} className={historyFilter===key?"selected":""} onClick={()=>setHistoryFilter(key)}>{label}</button>)}</div>
         <label className="pro-check-label"><input type="checkbox" checked={showHidden} onChange={(event)=>setShowHidden(event.target.checked)}/>숨긴 내역 보기</label></div>
-        {history.filter((draft)=>(showHidden||!draft.history_hidden_at)&&(!categoryFilter||draft.category_id===categoryFilter)&&(historyFilter==="all"||draft.publication_status===historyFilter)).map((draft)=><article className={"pro-history-item "+(draft.history_hidden_at?"hidden-item":"")} key={draft.id}>
+        {history.filter((draft)=>(showHidden||!draft.history_hidden_at)&&(!categoryFilter||draft.category_id===categoryFilter)&&(historyFilter==="all"||draft.publication_status===historyFilter||historyFilter==="test"&&draft.publish_stage==="test_completed")).map((draft)=><article className={"pro-history-item "+(draft.history_hidden_at?"hidden-item":"")} key={draft.id}>
           <div className="pro-history-top"><div><Status draft={draft}/><span>{accountLabel} · {operations.categories.find(c=>c.id===draft.category_id)?.name??"미분류"}</span>{draft.history_hidden_at&&<small>숨김</small>}</div><time>{time(draft.published_at??draft.publish_started_at??draft.updated_at)} KST</time></div>
           <p className="pro-history-body">{draft.body}</p>{draft.threads_post_id&&<p className="pro-post-id">Threads Post ID <code>{draft.threads_post_id}</code></p>}
-          {draft.publish_error&&<div className="pro-feedback error">{draft.publish_error}</div>}
+          {draft.publish_error&&<div className="pro-feedback error">{draft.publish_error}</div>}<p className="pro-help">{draft.publish_mode??"—"} · {draft.publish_stage} · 재시도 {draft.publish_retry_count}회{draft.publish_error_code?" · 오류 "+draft.publish_error_code:""}{draft.publish_next_retry_at?" · 다음 시도 "+time(draft.publish_next_retry_at):""}</p>{draft.threads_container_id&&<p className="pro-post-id">Container ID <code>{draft.threads_container_id}</code></p>}
           {!draft.publish_retryable&&draft.publication_status==="failed"&&<p className="pro-help">결과가 불확실해 자동 재시도를 차단했습니다. Threads에서 실제 게시 여부를 확인해야 합니다.</p>}
           <div className="pro-row-actions">{draft.publication_status==="failed"&&<button className="accent" disabled={busy||!draft.publish_retryable||!canPublish} onClick={()=>publish(draft)}>재시도</button>}
             {draft.publication_status==="failed"&&draft.publish_retryable&&<Link href={"/composer?draft="+draft.id}>수정 후 재시도</Link>}
@@ -293,22 +303,10 @@ export function ProductApp({view,email,workspace,initialDrafts,initialConnection
         {!history.filter((draft)=>showHidden||!draft.history_hidden_at).length&&<div className="pro-empty"><Icon name="clock" size={30}/><h3>게시 내역이 아직 없어요.</h3><p>게시가 끝나면 성공·실패와 Threads ID를 이곳에서 확인할 수 있습니다.</p></div>}
       </section>}
 
-      {view==="accounts"&&<>
-        <section className="pro-card pro-account-card"><div className="pro-account-card-header"><span className="pro-account-avatar large">@</span><div><h2>{account?"@"+account.username:"Threads 계정을 연결하세요"}</h2><p>{account?"이 workspace의 게시 계정":"게시할 계정과 안전한 서버 토큰을 준비하세요."}</p></div><span className={"pro-badge "+(canPublish?"success":"warning")}>{canPublish?"연결됨":"Meta 계정 연결 필요"}</span></div>
-          <div className="pro-account-details"><div><span>연결 상태</span><strong>{account?"계정 정보 저장됨":"미연결"}</strong></div><div><span>토큰 상태</span><strong>{connection.configured?(account?.token_status==="invalid"?"확인 필요":"서버 설정됨"):"토큰 설정 필요"}</strong></div>
-            <div><span>마지막 확인</span><strong>{time(account?.last_checked_at??account?.connected_at??null)}</strong></div><div><span>게시 가능 여부</span><strong>{canPublish?"즉시·예약 게시 가능":"연결 후 게시 가능"}</strong></div></div>
-          {connection.error&&<p className="pro-feedback error">{connection.error}</p>}
-          <div className="pro-composer-actions"><button className="pro-button primary" disabled={busy||workspace.role!=="owner"} onClick={connect}>{busy?"확인 중…":account?"계정 연결 확인":"Threads 계정 연결"}<Icon name="arrow" size={16}/></button>
-            <button className="pro-button ghost" onClick={()=>setSetupOpen(!setupOpen)}>연결 방법 보기</button></div>
-          {workspace.role!=="owner"&&<p className="pro-help">계정 연결은 workspace owner가 진행할 수 있습니다.</p>}
-        </section>
-        {(setupOpen||!canPublish)&&<section className="pro-card pro-setup"><h2>3단계로 게시 준비하기</h2><ol><li><strong>Meta Threads 앱 준비</strong><p>Meta 개발자 Dashboard에서 Threads API 앱과 게시할 계정을 준비하세요.</p><a href="https://developers.facebook.com/apps/" target="_blank" rel="noreferrer">Meta 개발자 Dashboard ↗</a></li>
-          <li><strong>서버 토큰 설정</strong><p>threads_basic와 threads_content_publish 권한의 사용자 토큰을 Vercel Production 환경변수에 설정하세요. 토큰은 브라우저에 입력하거나 채팅으로 공유하지 않습니다.</p></li>
-          <li><strong>계정 확인 후 게시 시작</strong><p>환경변수 적용 후 위의 계정 연결 버튼을 누르세요. 큐에서 기다리는 예약 글도 자동 실행할 수 있습니다.</p></li></ol>
-          <p className="pro-help">작성한 글과 예약은 계정 연결 전에도 저장됩니다.</p></section>}
-      </>}
+      {view==="accounts"&&<ThreadsAccounts outcome={initialConnectionOutcome} connection={connection} workspaceId={workspace.workspace.id} owner={workspace.role==="owner"} onChange={value=>{setConnection(value);setAccountId(value.account?.id??"");}}/>}
 
       {view==="bulk"&&<>
+        <CsvImport base={base} onBusy={setBusy} onSaved={rows=>setDrafts(items=>[...rows,...items.filter(item=>!rows.some(row=>row.id===item.id))])}/>
         <section className="pro-card"><div className="pro-card-title"><h2>일괄 예약 설정</h2><span>{bulk.length} / 30개</span></div>
           <div className="pro-bulk-settings"><div><label htmlFor="bulk-start">시작 날짜 (KST)</label><input id="bulk-start" type="date" min={today} value={bulkStart} onChange={(event)=>setBulkStart(event.target.value)}/></div>
             <div><label htmlFor="bulk-clock">시작 시간</label><input id="bulk-clock" type="time" value={bulkTime} onChange={(event)=>setBulkTime(event.target.value)}/></div>

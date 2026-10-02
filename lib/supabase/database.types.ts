@@ -6,6 +6,9 @@ export type ThreadsAccountRow = {
   id: string; workspace_id: string; threads_user_id: string; username: string;
   connected_by: string; connected_at: string;
   last_checked_at: string | null; token_status: "valid" | "invalid" | "unknown";
+  connection_status: "connected"|"expiring"|"token_error"|"disconnected"|"permission_required";
+  publishing_mode: "TEST"|"LIVE"; token_expires_at: string|null; token_refreshed_at: string|null;
+  granted_permissions: string[]; api_error_code: string|null; api_message: string|null; maintenance_after: string;
 };
 export type DraftRow = {
   id: string; workspace_id: string; author_profile_id: string; category_id:string|null;
@@ -16,6 +19,10 @@ export type DraftRow = {
   publish_error: string | null; publish_attempt_id: string | null;
   publish_started_at: string | null; publish_retryable: boolean;
   auto_publish: boolean; selected_threads_account_id: string | null; history_hidden_at: string | null;
+  publish_stage: "queued"|"processing"|"container_created"|"publishing"|"published"|"failed"|"test_completed";
+  publish_mode: "TEST"|"LIVE"|null; publish_requested_at:string|null; publish_error_code:string|null;
+  publish_retry_count:number; publish_next_retry_at:string|null; publish_needs_attention:boolean; tested_at:string|null;
+  source_template_id:string|null;
 };
 export type DraftApprovalHistoryRow = {
   id: string; draft_id: string; workspace_id: string; actor_user_id: string;
@@ -42,8 +49,10 @@ type MemberRow = {
 export type Database = {
   public: {
     Tables: {
+      threads_post_insight_snapshots:{Row:import("../threads-performance").PostInsight;Insert:never;Update:never;Relationships:[]};
+      account_insight_snapshots:{Row:import("../threads-performance").AccountInsight;Insert:never;Update:never;Relationships:[]};
       content_categories:{Row:Category;Insert:{workspace_id:string;created_by:string;name:string;color:string};Update:{name?:string;color?:string;archived_at?:string};Relationships:[]};
-      content_plans:{Row:ContentPlan;Insert:{workspace_id:string;created_by:string;request_id:string;business:string;goal:string;audience:string;start_date:string;end_date:string;target_count:number;mix:Record<string,number>;items:PlanItemJson[];status?:string};Update:{items?:PlanItemJson[];status?:string};Relationships:[]};
+      content_plans:{Row:ContentPlan;Insert:{workspace_id:string;created_by:string;request_id:string;business:string;goal:string;audience:string;start_date:string;end_date:string;target_count:number;mix:Record<string,number>;items:PlanItemJson[];status?:string;performance_feedback?:boolean};Update:{items?:PlanItemJson[];status?:string};Relationships:[]};
       recurring_schedules:{Row:RecurringSchedule;Insert:Omit<RecurringSchedule,"id"|"updated_at">&{created_by:string};Update:Partial<Omit<RecurringSchedule,"id"|"workspace_id"|"updated_at">>;Relationships:[]};
       ai_generation_jobs:{Row:AiGenerationRow;Insert:never;Update:{status?:string;error?:string;completed_at?:string};Relationships:[]};
       ai_generated_posts:{Row:AiPostRow;Insert:never;Update:{body?:string;draft_id?:string;deleted_at?:string};Relationships:[]};
@@ -135,7 +144,10 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      threads_account_operation:{Args:{p_workspace_id:string;p_secret:string;p_operation:string;p_data?:Json};Returns:Json};
+      threads_insight_operation:{Args:{p_workspace_id:string;p_secret:string;p_operation:string;p_data?:Json};Returns:Json};
       save_categorized_posts:{Args:{p_workspace_id:string;p_posts:Json;p_ai?:boolean};Returns:DraftRow[]};
+      save_csv_posts:{Args:{p_workspace_id:string;p_posts:Json};Returns:DraftRow[]};
       place_content_plan:{Args:{p_workspace_id:string;p_plan_id:string;p_expected_updated_at:string;p_posts:Json};Returns:DraftRow[]};
       ai_server_credential:{Args:{p_workspace_id:string;p_server_secret:string};Returns:string|null};
       reserve_ai_generation:{Args:{p_workspace_id:string;p_id:string;p_hash:string;p_parameters:Json;p_model:string};Returns:Json};
