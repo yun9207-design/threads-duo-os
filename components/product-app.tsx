@@ -82,7 +82,7 @@ export function ProductApp({view,email,workspace,initialDrafts,initialConnection
   const queue=drafts.filter((draft)=>draft.scheduled_at&&draft.publication_status!=="published")
     .sort((a,b)=>Date.parse(a.scheduled_at!)-Date.parse(b.scheduled_at!));
   const published=drafts.filter((draft)=>draft.publication_status==="published");
-  const queueEntries=drafts.filter((draft)=>draft.scheduled_at||draft.publish_needs_attention||draft.publish_stage==="cancelled").sort((a,b)=>Date.parse(a.publish_next_retry_at??a.scheduled_at??a.updated_at)-Date.parse(b.publish_next_retry_at??b.scheduled_at??b.updated_at)||Date.parse(a.created_at)-Date.parse(b.created_at));
+  const queueEntries=drafts.filter((draft)=>draft.scheduled_at||draft.publish_next_retry_at||draft.publish_needs_attention||draft.publication_status==="publishing"||draft.publish_stage==="cancelled").sort((a,b)=>Date.parse(a.publish_next_retry_at??a.scheduled_at??a.updated_at)-Date.parse(b.publish_next_retry_at??b.scheduled_at??b.updated_at)||Date.parse(a.created_at)-Date.parse(b.created_at));
   const failures=drafts.filter((draft)=>draft.publication_status==="failed"&&!draft.publish_simulated);
   const history=drafts.filter((draft)=>["published","failed","publishing"].includes(draft.publication_status)||draft.publish_stage==="test_completed")
     .sort((a,b)=>Date.parse(b.published_at??b.publish_started_at??b.updated_at)-Date.parse(a.published_at??a.publish_started_at??a.updated_at));

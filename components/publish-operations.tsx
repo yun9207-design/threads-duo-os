@@ -48,7 +48,7 @@ export function PublishTimeline({base,draft}:{base:string;draft:DraftRow}){
   {open&&<>{error&&<p role="alert">{error}</p>}{!events&&!error&&<p role="status">이력을 불러오는 중…</p>}
    {events&&<><p className="pro-help">작업 {draft.publish_job_id?.slice(0,8)} · 재시도는 같은 작업에 기록됩니다.</p><ol aria-label="시간순 게시 처리 이력">
     {events.map(e=><li key={e.id}><time>{fmt.format(new Date(e.created_at))} KST</time><strong>{PUBLISH_STATE_LABELS[e.to_state]??e.to_state}</strong>
-     <span>{e.simulated?"시뮬레이션 · ":""}{e.mode??"예약"} · 재시도 {e.retry_count}회</span>{e.summary&&<p>{e.summary}</p>}</li>)}</ol>
+     <span>{e.simulated?"시뮬레이션 · ":""}{e.mode??"작업 준비"} · 재시도 {e.retry_count}회</span>{e.summary&&<p>{e.summary}</p>}</li>)}</ol>
     {!events.length&&<p className="pro-help">운영 이력 도입 이전의 기록입니다. 다음 상태 변경부터 이력이 저장됩니다.</p>}</>}
   </>}
  </div>;
