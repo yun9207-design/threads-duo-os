@@ -31,11 +31,16 @@ export async function threadsConnection(workspaceId: string,verifiedClient?:Supa
   const rows=accountRows?await accountRows:null;
   const result = rows?{data:rows.length===1?rows[0]:null,error:rows.length>1?new Error("Multiple accounts"):null}:await client.from("threads_accounts").select("*").eq("workspace_id", workspaceId).maybeSingle();
   const account = result.data;
+  return threadsConnectionMetadata(workspaceId,account,result.error?"Threads 연결 정보를 불러오지 못했습니다.":"");
+}
+
+// A mutation already returns safe metadata. No second account query is needed.
+export function threadsConnectionMetadata(workspaceId:string,account:ThreadsAccountRow|null,error=""):ThreadsConnection {
   let configured = false;
   try { threadsServerSecret(workspaceId); configured = !!account && ["connected","expiring","permission_required"].includes(account.connection_status)
     && ["threads_basic","threads_content_publish"].every(p=>account.granted_permissions.includes(p)) && !!account.token_expires_at && Date.parse(account.token_expires_at)>Date.now(); } catch {}
   return { account, configured, oauthConfigured: !!threadsOAuthConfig(),
-    error: result.error ? "Threads 연결 정보를 불러오지 못했습니다." : "" };
+    error };
 }
 
 async function operation(workspaceId: string, name: string, args: {

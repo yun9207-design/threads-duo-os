@@ -1,4 +1,5 @@
-import { connectThreads, threadsConnection, publishingFailure } from "@/lib/threads-publishing";
+import { connectThreads, threadsConnection, threadsConnectionMetadata, publishingFailure } from "@/lib/threads-publishing";
+import type {ThreadsAccountRow} from "@/lib/supabase/database.types";
 import { draftRequestInput, draftsErrorResponse, draftsResponse } from "@/lib/drafts-http";
 import { DraftInputError } from "@/lib/drafts-validation";
 import {accountOperation,threadsOwner} from "@/lib/threads-accounts";
@@ -22,7 +23,8 @@ export async function POST(request: Request, context: Context) {
     if (!input || typeof input !== "object" || Array.isArray(input) || Object.keys(input).length) {
       throw new DraftInputError("계정 연결 입력을 확인해 주세요.");
     }
-    return draftsResponse({ account: await connectThreads((await context.params).workspaceId) });
+    const {workspaceId}=await context.params;
+    return draftsResponse(threadsConnectionMetadata(workspaceId,await connectThreads(workspaceId)));
   } catch (error) { return failure(error); }
 }
 export async function PATCH(request:Request,context:Context){
@@ -31,6 +33,7 @@ export async function PATCH(request:Request,context:Context){
     const input=await draftRequestInput(request) as {action?:string;mode?:string;confirmation?:string};
     if(!input || !["mode","disconnect"].includes(input.action??"") || Object.keys(input).some(k=>!["action","mode","confirmation"].includes(k)))
       throw new DraftInputError("계정 작업을 확인해 주세요.");
-    return draftsResponse({account:await accountOperation(workspaceId,input.action!,{mode:input.mode,confirmation:input.confirmation})});
+    const account=await accountOperation(workspaceId,input.action!,{mode:input.mode,confirmation:input.confirmation}) as ThreadsAccountRow|null;
+    return draftsResponse(threadsConnectionMetadata(workspaceId,account));
   }catch(error){return failure(error);}
 }

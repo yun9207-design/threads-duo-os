@@ -21,6 +21,11 @@ export async function productSnapshot(scope:string,workspaceId:string|null,withP
   const workspace=await readWorkspace(workspaceId,context);
   if(scope==="operations")return {operations:await operationsOverview(workspaceId,client)};
   if(scope==="performance")return {performance:await performanceOverview(workspaceId,client)};
+  if(scope==="connection")return {connection:await threadsConnection(workspaceId,client)};
+  if(scope==="live"){
+    const [drafts,worker]=await Promise.all([listDrafts(workspaceId,context),queueWorkerStatus(workspaceId,client)]);
+    return {drafts,worker,referenceTime:new Date().toISOString()};
+  }
   const accountRows=Promise.resolve(client.from("threads_accounts").select("*").eq("workspace_id",workspaceId)).then(result=>{
     if(result.error)throw new WorkspaceAccessError(503);return result.data;
   });

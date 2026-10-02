@@ -21,7 +21,8 @@ export async function GET(request: Request) {
     else {
       if (!code || code.length>4096) throw Error();
       const credential = await exchangeThreadsCode(config.appId,config.appSecret,config.redirectUri,code);
-      await storeThreadsConnection(workspaceId,credential.token,credential.expiresAt); outcome="connected";
+      const account=await storeThreadsConnection(workspaceId,credential.token,credential.expiresAt);
+      outcome=account.connection_status==="permission_required"?"permission_required":"connected";
     }
   } catch { /* Never echo the code, token, URL, or provider error into the redirect. */ }
   const origin = config ? new URL(config.redirectUri).origin : "https://threads-duo-os.vercel.app";

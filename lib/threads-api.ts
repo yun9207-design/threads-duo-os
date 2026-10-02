@@ -108,11 +108,13 @@ export async function publishThreadsText(token: string, userId: string, text: st
   }
 }
 
-export const THREADS_PERMISSIONS = ["threads_basic", "threads_content_publish", "threads_manage_insights"] as const;
+export const THREADS_PUBLISH_PERMISSIONS = ["threads_basic", "threads_content_publish"] as const;
+// Insights remains usable when already granted, but cannot block text publishing.
+export const THREADS_PERMISSIONS = [...THREADS_PUBLISH_PERMISSIONS, "threads_manage_insights"] as const;
 export function threadsAuthorizeUrl(appId: string, redirectUri: string, state: string) {
-  const url = new URL("https://threads.net/oauth/authorize");
+  const url = new URL("https://www.threads.com/oauth/authorize");
   url.search = new URLSearchParams({client_id: appId, redirect_uri: redirectUri, response_type: "code",
-    scope: THREADS_PERMISSIONS.join(","), state}).toString();
+    scope: THREADS_PUBLISH_PERMISSIONS.join(","), state}).toString();
   return url.toString();
 }
 async function tokenRequest(path: string, params: Record<string, string>, method: "GET"|"POST", token: string, transport: Fetcher) {

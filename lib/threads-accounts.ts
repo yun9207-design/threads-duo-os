@@ -5,7 +5,7 @@ import { getSupabaseConfig } from "./supabase/config";
 import { readWorkspace } from "./workspaces";
 import type { Database, Json, ThreadsAccountRow } from "./supabase/database.types";
 import { openThreadsToken, sealThreadsToken } from "./threads-crypto";
-import { refreshThreadsToken, threadsIdentity, threadsPermissions, ThreadsApiError, THREADS_PERMISSIONS } from "./threads-api";
+import { refreshThreadsToken, threadsIdentity, threadsPermissions, ThreadsApiError, THREADS_PUBLISH_PERMISSIONS } from "./threads-api";
 export class ThreadsAccountError extends Error {
   constructor(message: string, public readonly status = 503) { super(message); }
 }
@@ -81,7 +81,7 @@ export async function maintainThreadsAccount(workspaceId: string, client?: Supab
     }
     const [identity, permissions] = await Promise.all([threadsIdentity(token), threadsPermissions(token,config.appId,config.appSecret)]);
     if (identity.userId !== account.threads_user_id) throw new ThreadsApiError("게시 계정과 토큰이 다릅니다.", false, "IDENTITY_MISMATCH");
-    const status = THREADS_PERMISSIONS.every(p => permissions.includes(p))
+    const status = THREADS_PUBLISH_PERMISSIONS.every(p => permissions.includes(p))
       ? account.token_expires_at && Date.parse(account.token_expires_at)-Date.now()<7*86400000 ? "expiring" : "connected" : "permission_required";
     return await accountOperation(workspaceId, "health", {status, ok: true, permissions}, client, secret) as ThreadsAccountRow;
   } catch (error) {

@@ -442,3 +442,9 @@ workspace/RLS 단계에서 멈춘다. 다음 콘텐츠 기능은 시작하지 �
 Production 기존 세션의 5개 메뉴 이동: 같은 자동화 평균 2641ms → 355ms, 실제 클릭 이벤트 → DOM commit 15~63ms. 캐시가 준비된 이동은 Auth/DB HTTP 각 0회이며 documentTimeOrigin도 동일했다. 첫 로드와 TTL 갱신은 계속 인증/멤버십/RLS를 검증한다. 초기 snapshot은 Auth 1 + DB 13회, 해당 도쿄 DB 왕복은 13~43ms였다.
 
 lint/typecheck/build와 캐시·Calendar 5000개 항목 검사를 통과했다. 기존 A/B 로그인·RLS·게시 기능 테스트는 반복하지 않았다. [측정 방법·전후 표·변경 설명](NAVIGATION_PERFORMANCE.md)을 참고한다.
+## 2026-10-02 — Threads 실제 연결 준비 보완
+
+- 공식 Meta 샘플의 현재 `www.threads.com/oauth/authorize` 주소를 사용하고 OAuth 요청·DB 연결 판정·계정 유지관리의 필수 권한을 basic/publish 두 개로 맞췄다. Insights는 선택이다. 실제 Supabase 연결 함수에 최소 권한 migration 적용 및 함수 정의 확인 완료. 기존 credential/state/claim/worker 접근 경계는 유지했다.
+- `scripts/test-threads-oauth.mjs`, `scripts/test-threads-connection.mjs` PASS: 현재 authorization 주소/code/long-lived/refresh 계약, 게시 권한 부족 상태, 게시 권한 두 개로 Connected/LIVE 허용, 계정·초안 캐시 범위 분리, 오래된 응답의 변경 데이터 덮어쓰기 방지. 격리 DB·모의 Meta transport 검사이며 외부 게시 성공의 증거가 아니다. 이전 Auth/A·B/RLS/제품 전체 테스트는 반복하지 않았다.
+- Vercel Production에 기존 게시 capability(Secret)·workspace ID·정확한 callback URI 등록 완료. 로컬 및 Production의 Threads App ID/Secret은 아직 없어 OAuth 연결·실제 글 1건·post ID 저장·History Published는 외부 설정 대기다. 운영 DB에 테스트 게시물이나 가짜 ID를 넣지 않았다. 준비할 메뉴와 단계는 `THREADS_LIVE.md`에 기록한다.
+- Supabase advisor는 기존 private 저장소의 의도적인 RLS 무정책 INFO와 기존 Auth password 설정 WARN만 반환했다. 이번 권한 판정 변경에 따라 client credential 접근 권한을 추가하지 않았다.

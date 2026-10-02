@@ -16,7 +16,7 @@ Vercel → threads-duo-os → Settings → Environment Variables → Production�
 | `THREADS_APP_SECRET` | 해당 **Threads App Secret**, 서버 전용 |
 | `THREADS_REDIRECT_URI` | `https://threads-duo-os.vercel.app/api/threads/oauth/callback` |
 
-Meta 개발자 Dashboard의 Threads API 설정에서도 Redirect Callback URL을 위 주소와 정확히 일치시킨다. 개발 모드에서는 Threads 테스터 초대를 수락한 계정으로 연결하며 일반 사용자 권한은 Meta App Review 요건을 따른다. 요청 권한은 `threads_basic`, `threads_content_publish`, `threads_manage_insights`다. 기존 `THREADS_WORKSPACE_ID`, `THREADS_PUBLISHING_SECRET`, Supabase 공개 설정은 유지한다. `THREADS_ACCESS_TOKEN`은 이전 단계 변수이며 P3 엔진은 이 값을 읽지 않고 OAuth credential을 사용한다. 사용자 토큰을 직접 붙여 넣을 필요가 없다.
+Meta 개발자 Dashboard의 Threads API 설정에서도 Redirect Callback URL을 위 주소와 정확히 일치시킨다. 개발 모드에서는 Threads 테스터 초대를 수락한 계정으로 연결하며 일반 사용자 권한은 Meta App Review 요건을 따른다. 이번 연결의 요청 권한은 `threads_basic`, `threads_content_publish` 두 개다. `threads_manage_insights`는 기존 허용 상태를 읽을 수 있지만 게시 연결의 필수 권한이 아니다. 기존 `THREADS_WORKSPACE_ID`, `THREADS_PUBLISHING_SECRET`, Supabase 공개 설정은 유지한다. `THREADS_ACCESS_TOKEN`은 이전 단계 변수이며 P3 엔진은 이 값을 읽지 않고 OAuth credential을 사용한다. 사용자 토큰을 직접 붙여 넣을 필요가 없다.
 
 Accounts에서 owner가 **Threads 계정 연결**을 누르면 Meta 인증 후 같은 화면으로 돌아온다. HTTPS callback, 일회용 서버 state hash, 만료 10분, HttpOnly/Secure/SameSite 쿠키와 현재 owner를 함께 확인한다. 기존 계정과 다른 Threads ID로 바꾸는 재연결은 거절한다. 다중 계정은 후속 범위다.
 
@@ -28,7 +28,21 @@ Code를 서버에서 교환해 long-lived token과 만료를 저장한다. 토�
 
 연결과 재연결은 항상 **TEST**다. TEST도 컨테이너 생성·준비 확인·결과 저장을 수행하지만 최종 `threads_publish` 전에 멈춘다. 실제 post ID나 Published 수치를 만들지 않는다. TEST 완료 글은 자동 반복하지 않는다. LIVE 전환 후 다시 게시하거나 예약을 수정해야 재진입한다.
 
-owner가 Accounts에서 `LIVE`를 직접 입력해야 전환된다. 연결·만료·세 권한을 확인한다. LIVE 전환 후 대기 예약은 다음 실행부터 실제 게시 대상이다. 연결 해제 시 credential을 제거하고 TEST로 바꾸며 글과 이력은 보존한다.
+owner가 Accounts에서 `LIVE`를 직접 입력해야 전환된다. 연결·만료·기본 정보/게시 권한을 확인한다. LIVE 전환 후 대기 예약은 다음 실행부터 실제 게시 대상이다. 연결 해제 시 credential을 제거하고 TEST로 바꾸며 글과 이력은 보존한다.
+
+### 2026-10-02 — 실제 계정 연결 준비 보완
+
+현재 [Meta 공식 샘플](https://github.com/fbsamples/threads_api/blob/main/src/index.js)의 `https://www.threads.com/oauth/authorize`와 [Meta 공식 API 컬렉션](https://www.postman.com/meta/threads/documentation/dht3nzz/threads-api)의 code 교환/long-lived token 계약을 확인했다. OAuth state·현재 owner·일회용 DB 소비와 AES-GCM private credential 저장, 기존 publisher의 claim/중복 방지는 유지한다. 계정 연결 결과는 안전한 metadata만 반환하며 Accounts는 변경 응답을 즉시 반영한다. 권한 부족은 별도 안내하고 선택 Insights 권한 때문에 Connected/LIVE가 차단되지 않는다.
+
+`20261002030924_threads_publish_permissions.sql`은 기존 연결 함수의 필수 권한만 두 개로 바꾼다. 새로운 DB 컬럼이나 credential 접근 권한은 추가하지 않는다. 계정 캐시는 `connection`으로 분리하고 기존 `live` 갱신은 drafts/worker만 조회한다. Accounts 변경은 Calendar/Planner/History/Templates를 다시 요청하지 않는다. 공통 Layout·prefetch·세션 격리·서버 권한 확인은 유지한다.
+
+Vercel Production에 기존 `.env.local`의 `THREADS_PUBLISHING_SECRET`(Secret)·`THREADS_WORKSPACE_ID`와 정확한 `THREADS_REDIRECT_URI`를 저장했다. Meta 앱 credential 두 개는 아직 로컬/Production에 없다. 실제 계정·토큰·게시 ID는 생성하지 않았으며 연결 완료나 실제 게시 성공으로 주장하지 않는다. 사용자 준비 순서는 다음과 같다.
+
+1. [Meta 개발자 Dashboard](https://developers.facebook.com/apps/)에서 Threads API 사용 사례가 있는 앱을 준비한다.
+2. 앱 Dashboard → 앱 설정 → 기본의 **Threads App ID / Threads App secret**을 Vercel 프로젝트 → Settings → Environment Variables → Production의 `THREADS_APP_ID` / `THREADS_APP_SECRET`으로 저장한다. 일반 Facebook App ID와 혼동하지 않는다. Secret은 Secret 타입으로 저장하며 채팅에 보내지 않는다.
+3. Threads API 사용 사례 설정의 Redirect Callback URL에 `https://threads-duo-os.vercel.app/api/threads/oauth/callback`을 정확히 등록한다. 개발 모드 계정은 Threads 테스터 초대를 수락하고 기본 정보·게시 권한을 준비한다. localhost URI로 바꾸지 않는다.
+4. Vercel 최신 main 배포를 Redeploy한 뒤 Production Accounts에서 연결하고 Meta 권한을 승인한다. Connected 확인 후 LIVE를 활성화한다.
+5. Composer에서 `Threads Pro 게시 연결 테스트입니다.`를 즉시 게시로 딱 한 번 실행한다. Threads 실제 계정·History·DB의 post ID가 같은지 확인해야 실제 게시 완료다.
 
 Worker의 유지관리 전용 실행에서 계정/권한/토큰을 확인한다. 유효 토큰의 만료가 7일 이내이고 발급/갱신 후 24시간 이상 지났으면 refresh한다. 정상 확인은 24시간 뒤, 실패는 1시간 뒤 다시 시도한다. 일시 네트워크 오류를 토큰 무효로 단정하지 않는다.
 
