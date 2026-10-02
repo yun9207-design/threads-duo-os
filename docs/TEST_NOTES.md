@@ -6,6 +6,7 @@
 - 실제 Supabase에 `publish_operations_stability` migration 적용. 기존 drafts 3건 보존, 신규 job 필드·이력 RLS 확인, connected account/Insight snapshot/collector job 0건. Scheduler의 매분 실제 heartbeat는 Meta 연결 대기를 기록한다.
 - lint/typecheck/production build PASS. MASTER_PLAN 원본/정적 SHA256 일치, 기존 MD 보존. Auth/A·B/기존 P0~P2 반복검사는 수행하지 않는다. 자세한 사용·복구·성과 경계는 `PUBLISH_OPERATIONS.md`에 있다.
 - main `6ddd95f` Git 배포 Ready 후 기존 Production Chrome 세션에서 읽기 전용 검사→credential 없는 TEST 저장/완료→History의 5단계 시간순 이력을 확인했다. 일시 오류는 실제 DB `retry_wait`/1분 대기와 Dashboard Retry 1로 반영됐고 외부 Post ID/published_at은 NULL이다. 새 API smoke에서 이력의 익명 오류 매핑(503→401)을 수정했고, 예약시간 없는 Retry도 Queue에 표시하도록 보완했다. 기존 로그인 수동 입력은 요청하지 않았다.
+- 실제 매분 Cron이 위 TEST를 1분 뒤 재시도한 뒤 retry_count=1/5분 대기로 저장한 것을 확인했다. 권한 오류 TEST는 Needs Attention/오류 요약/수정·취소 버튼으로 표시된다. TEST 작업도 Queue 운영 건수에 포함하며 실제 게시/성과 집계에서는 제외한다. 확인용 글은 TEST로 표시했고 실제 Meta 전송은 없다.
 
 ## 2026-10-02 — P3 LIVE 운영과 성과 피드백
 
