@@ -6,7 +6,7 @@ export function beginNavigation(view:string){if(enabled)pending={view,start:perf
 export function finishNavigation(view:string){
   if(!enabled||pending?.view!==view)return;
   const navigation=pending;pending=null;
-  requestAnimationFrame(()=>{
+  // Layout commit is observable even when Chrome throttles background-tab frames.
     const resources=(performance.getEntriesByType("resource") as PerformanceResourceTiming[]).filter(r=>r.startTime>=navigation.start);
     const requests=resources.filter(r=>new URL(r.name).pathname.startsWith("/api/"));
     const slowest=[...requests].sort((a,b)=>b.duration-a.duration)[0];
@@ -14,5 +14,4 @@ export function finishNavigation(view:string){
       elapsedMs:Math.round((performance.now()-navigation.start)*10)/10,documentTimeOrigin:performance.timeOrigin,
       browserApiRequests:requests.length,slowestApi:slowest?new URL(slowest.name).pathname:null,
       slowestApiMs:slowest?Math.round(slowest.duration):null}));
-  });
 }

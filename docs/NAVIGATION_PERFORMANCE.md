@@ -31,7 +31,7 @@ Chrome의 기존 로그인 세션에서 메뉴 클릭 시작부터 새 페이지
 - 변경 결과는 provider에 즉시 반영. 변경 전 시작한 읽기가 새 결과를 덮지 않게 revision 검사와 scope 무효화를 적용한다.
 - AI 기록/템플릿 읽기도 세션별 TTL/in-flight 캐시. 기록 변경 후 강제 갱신한다.
 - Calendar는 날짜와 예약을 한 번 인덱싱하고 memoize. 불필요한 성과 패턴 계산은 Planner에서만 수행한다.
-- `?__nav_perf=1`은 개발 진단용 console 측정만 활성화한다. 클릭 → commit 후 animation frame, document time origin, 브라우저 API 수를 기록하며 사용자 식별자·본문·키는 기록하지 않는다. 기본 화면에 진단 UI를 추가하지 않는다.
+- `?__nav_perf=1`은 개발 진단용 console 측정만 활성화한다. 클릭 → DOM commit, document time origin, 브라우저 API 수를 기록하며 사용자 식별자·본문·키는 기록하지 않는다. 기본 화면에 진단 UI를 추가하지 않는다. Chrome 백그라운드 탭의 animation frame은 1초까지 지연되므로 DOM commit 시점과 구분한다.
 
 ## 검증
 
@@ -39,4 +39,20 @@ Chrome의 기존 로그인 세션에서 메뉴 클릭 시작부터 새 페이지
 - `node scripts/test-navigation-performance.mjs`: 캐시 중복 요청/TTL/무효화/오류 복구와 Calendar 5,000개 항목의 월·주·상태·카테고리·반복 슬롯 표시 결과 보존 통과.
 - Calendar 합계 인덱싱 82ms, 기존 방식의 비교/검사 포함 합계 2092ms. 합성 데이터의 CPU 검사이며 Production 사용자 전환 시간과 별도다.
 - MASTER_PLAN 원본/public SHA256 모두 `3073aaab4c243c773675df4e123c8e3508e09caf1bf9529effe67022dfa34dff` 유지.
-- Production 수정 후 실측은 배포 완료 후 아래에 기록한다.
+## Production 수정 후 1차 실측
+
+기능 commit `0ab28c2d9e7a9925a2adcb1b4f47144ede760f5d` main push 성공. Vercel GitHub 상태 success, [배포 상세](https://vercel.com/bluegee/threads-duo-os/6hpLTgZr33Fc3NAAD9i1M87U3HsY). 실제 `/api/product` 응답의 `x-vercel-id`는 `icn1::hnd1`이다.
+
+| 이동 | 시작 UTC | 완료 UTC | 동일 자동화 방식 ms | Auth HTTP | DB HTTP |
+|---|---|---|---:|---:|---:|
+| Dashboard → Calendar | 02:34:39.910 | 02:34:40.056 | 146 | 0 | 0 |
+| Calendar → Queue | 02:34:40.056 | 02:34:40.159 | 103 | 0 | 0 |
+| Queue → History | 02:34:40.159 | 02:34:41.322 | 1163 | 0 | 0 |
+| History → Composer | 02:34:41.322 | 02:34:42.357 | 1035 | 0 | 0 |
+| Composer → Planner | 02:34:42.357 | 02:34:42.652 | 295 | 0 | 0 |
+
+같은 02:34:37~44 UTC 구간 Supabase edge_logs에 요청이 없었고 브라우저 API 측정도 0이었다. 캐시가 준비된 메뉴 이동 기준이며 첫 방문/API TTL 갱신/사용자 새로고침까지 0회라는 의미가 아니다. documentTimeOrigin은 모든 진단 기록에서 동일해 document reload가 없었다.
+
+초기 snapshot의 별도 02:34:19.705~19.965 구간은 Auth 1 + DB 13 HTTP였다. 같은 accounts 조회는 1개, 자신만의 membership 추가 조회는 제거됐다. 초기 요청은 여전히 인증/RLS를 거친다. 도쿄 내부에서 해당 DB 요청의 origin time은 13~43ms였다. 메뉴 클릭마다 이 초기 요청을 반복하지 않는다.
+
+첫 진단의 animation frame 기록은 Chrome의 백그라운드 프레임 제한 때문에 History에서 1012ms까지 늘었다. 프레임 시점과 실제 DOM commit을 혼동하지 않도록 진단 코드를 수정했고 최종 DOM commit 실측을 추가한다. 기존 사용자 화면과 라우팅 동작은 변경하지 않는다.
