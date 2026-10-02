@@ -5,6 +5,7 @@ import type { Database,DraftRow } from "@/lib/supabase/database.types";
 import { isUuid } from "@/lib/drafts-validation";
 import {accountOperation,maintainThreadsAccount,threadsCredential} from "@/lib/threads-accounts";
 import {syncThreadsInsights} from "@/lib/threads-insights";
+import {runPublishSimulation,type SimulationScenario} from "@/lib/publish-operations";
 
 export const runtime="nodejs";
 export const maxDuration=120;
@@ -35,6 +36,18 @@ export async function POST(request:Request){
   };
   try{await op("heartbeat",{status:"checking",detail:"예약 큐 확인"});}
   catch{return reply({error:"Unauthorized"},401);}
+  try{
+    await op("recover_stale");
+    const simulation=await op("claim_simulation_due") as DraftRow|null;
+    if(simulation){
+      await runPublishSimulation(simulation.publish_simulation_scenario as SimulationScenario,(step,data)=>op(step,data??{},simulation));
+      await op("heartbeat",{status:"ready",detail:"TEST 재시도 처리 · 실제 게시 없음"});
+      return reply({status:"simulation",draftId:simulation.id});
+    }
+  }catch{
+    await op("heartbeat",{status:"error",detail:"게시 작업 잠금 확인 필요"}).catch(()=>{});
+    return reply({error:"게시 작업 상태를 확인해 주세요."},503);
+  }
   // Same existing worker, with account-scoped OAuth credentials and bounded
   // daily maintenance. Credentials and SQL responses never enter HTTP output.
   try { const due=await accountOperation(workspaceId,"maintenance_claim",{},client,secret);

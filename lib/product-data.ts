@@ -7,6 +7,7 @@ import { parseScheduleInput } from "@/lib/draft-scheduling";
 import type {SupabaseClient} from "@supabase/supabase-js";
 import type {Database} from "./supabase/database.types";
 import { PublishingError } from "@/lib/threads-publishing";
+import {threadsServerSecret} from "./threads-accounts";
 
 export type PostInput = {
   body: string; mode: "draft" | "now" | "schedule"; draftId?: string; expectedUpdatedAt?: string;
@@ -78,8 +79,13 @@ export async function changeProductPost(workspaceId: string, draftId: string, va
   if (!["cancel","hide","show"].includes(input.action as string) || !isUuid(draftId)) throw new DraftInputError("작업을 확인해 주세요.");
   const version = parseDeleteInput({ expectedUpdatedAt: input.expectedUpdatedAt });
   const client = await productClient(workspaceId);
-  const changes = input.action === "cancel" ? { scheduled_at: null, auto_publish: false }
-    : { history_hidden_at: input.action === "hide" ? new Date().toISOString() : null };
+  if(input.action==="cancel"){
+    const cancelled=await client.rpc("threads_publish_operation",{p_workspace_id:workspaceId,p_secret:threadsServerSecret(workspaceId),
+      p_operation:"cancel",p_draft_id:draftId,p_expected_updated_at:version});
+    if(cancelled.error)mutationError(cancelled.error.code);
+    return cancelled.data as import("./supabase/database.types").DraftRow;
+  }
+  const changes = { history_hidden_at: input.action === "hide" ? new Date().toISOString() : null };
   const result = await client.from("drafts").update(changes).eq("workspace_id",workspaceId)
     .eq("id",draftId).eq("updated_at",version).is("deleted_at",null).select("*").maybeSingle();
   if (result.error) mutationError(result.error.code);

@@ -1,5 +1,7 @@
 # Threads Duo OS
 
+현재 추가 범위는 **게시 운영 안정화와 Insights 수집 기반**이다. 기존 draft를 작업으로 재사용하며 고유 작업 키, 10분 처리 lease, 안전한 1/5/15분 retry, Needs Attention, 시간순 처리 이력과 credential 없는 TEST 시뮬레이션을 제공한다. Meta 연결 전에도 Composer/Queue에서 준비 검사와 TEST 처리를 사용할 수 있다. 실제 게시/성과를 성공으로 꾸미지 않는다. [사용과 안전 경계](docs/PUBLISH_OPERATIONS.md).
+
 최신 추가 범위는 **P3 LIVE 운영과 성과 피드백**이다. OAuth/Token Manager, TEST/LIVE, 기존 Publisher 단계·제한 재시도, Insights snapshot, 실제 지표 Analytics/Top Posts/패턴, 성과 기반 AI 후속 글→Queue, Planner 성과 반영, CSV preview/import를 구현하고 실제 Supabase migrations를 적용했다. **Meta App 설정 전이므로 실제 Threads 게시·외부 Insights 수집은 미확인**이다. [서버 설정·운영·검증 경계](docs/THREADS_LIVE.md)를 따른다. 아래 P0~P2 기록과 MASTER_PLAN은 보존한다.
 
 현재 제품은 **Threads 자동운영 P2**까지 구현했다. `/planner` 주간 AI 계획·실제 글 생성·콘텐츠 믹스·검토 후 전체 배치, `/calendar` 월간/주간·드래그 예약 이동, `/recurring` 요일/시간/템플릿별 반복 슬롯, `/categories` 공통 분류, `/analytics` 실제 내부 집계와 Dashboard 주간 운영을 제공한다. [사용 흐름과 DB](docs/CONTENT_OPERATIONS.md)를 참고한다. 기존 기능과 아래 개발 이력은 보존한다.

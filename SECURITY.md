@@ -1,5 +1,12 @@
 # SECURITY
 
+## 게시 작업 안전장치 — 2026-10-02
+
+- TEST 저장과 claim은 한 트랜잭션으로 처리해 LIVE worker가 중간 승인 글을 가져갈 수 없게 한다. 실제 Meta worker와 simulation retry를 분리하며 simulation에는 container/Post ID, published_at, Insight snapshot을 저장하지 않는다.
+- 서버 capability + 실제 멤버십 + expectedUpdatedAt + row lock/attempt UUID로 실행한다. 10분 만료 processing 중 외부 게시 이전만 retry; container/최종 응답이 불확실하면 잠금을 유지하고 재게시·편집·취소를 막는다. 작업 키는 같은 retry에 유지한다.
+- 처리 이력은 DB trigger가 기록하고 workspace 멤버에게 SELECT만 허용한다. 클라이언트의 job/lease/simulation/이력/성과 쓰기 권한은 추가하지 않는다. Collector도 attempt 번호가 같은 유효 lease만 완료할 수 있다.
+- Insights scope는 명시적 별도 연결 버튼에서 요청하며 일반 텍스트 게시 OAuth에 강제하지 않는다. 토큰은 기존 서버 암호화 구조를 사용한다.
+
 ## P3 추가 경계
 
 Meta App Secret/code 교환/long-lived token/refresh/debug_token은 서버에서 처리한다. OAuth는 owner + 만료 10분의 일회용 state hash + HttpOnly/Secure/SameSite 쿠키를 검증한다. 사용자 토큰은 workspace/AAD로 묶은 AES-256-GCM envelope를 private schema에 저장하며 브라우저/로그/에러/localStorage에 원문을 반환하지 않는다. 기존 server capability를 재사용하고 service-role key는 사용하지 않는다. capability 교체 시 재연결이 필요하다.

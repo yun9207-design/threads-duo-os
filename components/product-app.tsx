@@ -11,6 +11,8 @@ import {OperationsPanel} from "@/components/content-operations";
 import {ThreadsAccounts} from "@/components/threads-accounts";
 import {ThreadsPerformance} from "@/components/threads-performance";
 import {CsvImport} from "@/components/csv-import";
+import {PublishSimulation,PublishTimeline} from "./publish-operations";
+import {schedulerHealth} from "@/lib/publish-operations";
 import type {PerformanceData} from "@/lib/threads-performance";
 import type {OperationsData} from "@/lib/content-operations";
 import type { DraftWorkspace } from "@/lib/drafts";
@@ -23,6 +25,7 @@ type Worker=Database["public"]["Tables"]["queue_worker_status"]["Row"]|null;
 const normalize=(value:string)=>value.trim().replace(/\s+/g," ").toLowerCase();
 const isLocked=(draft:DraftRow)=>draft.publication_status==="published"||draft.publication_status==="publishing"||!draft.publish_retryable;
 function badge(draft:DraftRow){
+  if(draft.publish_stage==="cancelled")return {text:"예약 취소",className:"neutral"};
   if(draft.publish_stage==="test_completed")return {text:"TEST 완료 · 미게시",className:"warning"};
   if(draft.publish_needs_attention)return {text:"Needs Attention",className:"danger"};
   if(draft.publish_next_retry_at)return {text:"재시도 대기",className:"warning"};
@@ -79,18 +82,33 @@ export function ProductApp({view,email,workspace,initialDrafts,initialConnection
   const queue=drafts.filter((draft)=>draft.scheduled_at&&draft.publication_status!=="published")
     .sort((a,b)=>Date.parse(a.scheduled_at!)-Date.parse(b.scheduled_at!));
   const published=drafts.filter((draft)=>draft.publication_status==="published");
-  const queueEntries=drafts.filter((draft)=>draft.scheduled_at).sort((a,b)=>Date.parse(a.scheduled_at!)-Date.parse(b.scheduled_at!));
-  const failures=drafts.filter((draft)=>draft.publication_status==="failed");
-  const history=drafts.filter((draft)=>["published","failed"].includes(draft.publication_status)||draft.publish_stage==="test_completed")
+  const queueEntries=drafts.filter((draft)=>draft.scheduled_at||draft.publish_needs_attention||draft.publish_stage==="cancelled").sort((a,b)=>Date.parse(a.publish_next_retry_at??a.scheduled_at??a.updated_at)-Date.parse(b.publish_next_retry_at??b.scheduled_at??b.updated_at)||Date.parse(a.created_at)-Date.parse(b.created_at));
+  const failures=drafts.filter((draft)=>draft.publication_status==="failed"&&!draft.publish_simulated);
+  const history=drafts.filter((draft)=>["published","failed","publishing"].includes(draft.publication_status)||draft.publish_stage==="test_completed")
     .sort((a,b)=>Date.parse(b.published_at??b.publish_started_at??b.updated_at)-Date.parse(a.published_at??a.publish_started_at??a.updated_at));
   const today=kstInput(now).slice(0,10);
   const todayPublished=published.filter((draft)=>draft.published_at&&kstInput(draft.published_at).slice(0,10)===today).length;
-  const next=queue.find((draft)=>draft.publication_status==="unpublished"&&draft.publish_stage!=="test_completed");
+  const next=queue.find((draft)=>!draft.publish_simulated&&draft.publication_status==="unpublished"&&draft.publish_stage!=="test_completed");
   const duplicates=body.trim()?drafts.filter((draft)=>draft.id!==editing?.id&&normalize(draft.body)===normalize(body)):[];
   const locked=!!editing&&isLocked(editing);
   const savedDrafts=drafts.filter((draft)=>!draft.scheduled_at&&draft.publication_status==="unpublished");
   const accountLabel=account?"@"+account.username:"연결할 Threads 계정";
   const workerFresh=workerState?.last_run_at&&Date.parse(now)-Date.parse(workerState.last_run_at)<180000;
+  const health=schedulerHealth(workerState,canPublish,Date.parse(now));
+  const retries=drafts.filter(d=>!!d.publish_next_retry_at&&!d.publish_needs_attention);
+  const attention=drafts.filter(d=>d.publish_needs_attention);
+  const insightPending=published.filter(d=>!performance.posts.some(s=>s.draft_id===d.id)).length;
+  const operationalDrafts=drafts.filter(d=>!d.publish_simulated);
+  let simulationSchedule:string|null=null;
+  try{if(mode==="schedule"&&date&&clock)simulationSchedule=kstInputToIso(date+"T"+clock);}catch{}
+  function queueMatch(draft:DraftRow){
+    if(queueFilter==="attention")return draft.publish_needs_attention;
+    if(queueFilter==="retry")return !!draft.publish_next_retry_at&&!draft.publish_needs_attention;
+    if(queueFilter==="cancelled")return draft.publish_stage==="cancelled";
+    if(queueFilter==="test")return draft.publish_simulated||draft.publish_stage==="test_completed";
+    if(queueFilter==="all")return true;
+    return draft.publish_stage!=="cancelled"&&draft.publish_stage!=="test_completed"&&draft.publication_status===queueFilter;
+  }
 
   async function request(path:string,method="GET",payload?:unknown){
     const response=await fetch(path,{method,cache:"no-store",credentials:"same-origin",
@@ -166,12 +184,17 @@ export function ProductApp({view,email,workspace,initialDrafts,initialConnection
       {error&&<div className="pro-feedback error" role="alert"><Icon name="warning" size={18}/>{error}</div>}
       {notice&&<div className="pro-feedback success" role="status"><Icon name="check" size={18}/>{notice}</div>}
       {!canPublish&&view!=="accounts"&&<div className="pro-connection-banner"><div><strong>Meta 계정 연결이 필요해요.</strong><p>글 작성과 예약은 지금 시작할 수 있습니다. 실제 게시는 계정 연결 후 실행됩니다.</p></div><Link href="/accounts">계정 연결 <Icon name="arrow" size={16}/></Link></div>}
-      {["dashboard","analytics"].includes(view)&&<ThreadsPerformance view={view as "dashboard"|"analytics"} base={base} data={performance} drafts={drafts} categories={operations.categories} connection={connection} now={now} onChange={setPerformance}/>}
+      {["dashboard","analytics"].includes(view)&&<ThreadsPerformance view={view as "dashboard"|"analytics"} base={base} data={performance} drafts={operationalDrafts} categories={operations.categories} connection={connection} now={now} onChange={setPerformance}/>}
 
-      {["dashboard","calendar","planner","recurring","categories","analytics"].includes(view)&&<OperationsPanel key={view} view={view} base={base} data={operations} performance={performance} drafts={drafts} now={now} accountId={accountId} accountLabel={accountLabel} onChange={setOperations} onDrafts={rows=>setDrafts(items=>[...rows,...items.filter(i=>!rows.some(row=>row.id===i.id))])} initialFill={initialFill}/>}
+      {["dashboard","calendar","planner","recurring","categories","analytics"].includes(view)&&<OperationsPanel key={view} view={view} base={base} data={operations} performance={performance} drafts={view==="analytics"||view==="dashboard"?operationalDrafts:drafts} now={now} accountId={accountId} accountLabel={accountLabel} onChange={setOperations} onDrafts={rows=>setDrafts(items=>[...rows,...items.filter(i=>!rows.some(row=>row.id===i.id))])} initialFill={initialFill}/>}
       {view==="dashboard"&&<>
+        <section className="publish-health" aria-label="자동게시 운영 상태">
+          <article className="pro-card"><h3>{health.label}</h3><p>마지막 실행 <strong>{time(workerState?.last_run_at??null)}</strong></p><p>다음 검사 예정 <strong>{time(health.next)}</strong></p><p>처리 대기 {queue.filter(d=>!d.publish_simulated&&d.publication_status==="unpublished"&&d.publish_stage!=="test_completed").length} · Retry {retries.length} · Attention {attention.length}</p></article>
+          <article className="pro-card"><h3>계정 & 게시 모드</h3><p><strong>{canPublish?"Threads Connected":"Threads 연결 대기"}</strong> · {account?.publishing_mode??"TEST"}</p><p>TEST 시뮬레이션은 실제 게시·성과 수치에 포함하지 않습니다.</p><Link className="pro-text-link" href="/queue">Retry / Attention 관리</Link></article>
+          <article className="pro-card"><h3>게시 후 Insights</h3><p>Waiting <strong>{insightPending}</strong> · Updated <strong>{new Set(performance.posts.map(s=>s.draft_id)).size}</strong></p><p>{!account?.granted_permissions.includes("threads_manage_insights")?"Threads Insights 연결 후 제공":"실제 게시 후 +1h · 6h · 24h · 72h · 7d 수집"}</p><Link className="pro-text-link" href="/analytics">운영 데이터 보기</Link></article>
+        </section>
         <section className="pro-stats" aria-label="운영 현황">{([
-          ["오늘 게시",todayPublished,"한국 시간 오늘", "pen"], ["오늘 게시 예정",queue.filter((draft)=>draft.publication_status==="unpublished"&&kstInput(draft.scheduled_at!).slice(0,10)===today).length,"오늘 게시를 기다리는 글","calendar"],
+          ["오늘 게시",todayPublished,"한국 시간 오늘", "pen"], ["오늘 게시 예정",queue.filter((draft)=>!draft.publish_simulated&&draft.publish_stage!=="test_completed"&&draft.publication_status==="unpublished"&&kstInput(draft.scheduled_at!).slice(0,10)===today).length,"오늘 게시를 기다리는 글","calendar"],
           ["게시 성공",published.length,"전체 성공 내역","check"],["게시 실패",failures.length,"확인이 필요한 글","warning"],
         ] as const).map(([label,value,caption,icon])=><article key={label} className={"pro-stat "+(icon==="warning"&&value?"has-error":"")}><div><span>{label}</span><Icon name={icon} size={20}/></div><strong>{value}<small>건</small></strong><p>{caption}</p></article>)}</section>
         {failures.length>0&&<div className="pro-feedback error"><Icon name="warning" size={18}/><span>{failures.length}개 글의 게시가 실패했습니다.</span><Link href="/history">실패 내역 확인</Link></div>}
@@ -218,8 +241,11 @@ export function ProductApp({view,email,workspace,initialDrafts,initialConnection
             <button className="pro-button primary" disabled={busy||locked||invalidBody||(duplicateWarning&&!allowDuplicate)||(mode==="now"&&!canPublish)||(mode==="schedule"&&!date)} onClick={()=>save(mode)}>
               {busy?"처리 중…":mode==="now"?"지금 게시":"예약 등록"}<Icon name={mode==="now"?"arrow":"calendar"} size={16}/></button></div>
           {notice&&editing&&<Link className="pro-text-link" href={editing.publication_status==="published"?"/history":editing.scheduled_at?"/queue":"/composer"}>저장된 글 확인 <Icon name="arrow" size={14}/></Link>}
+          <PublishSimulation base={base} disabled={busy||locked||invalidBody||(mode==="schedule"&&!simulationSchedule)} onBusy={setBusy}
+            post={{body,mode,...(editing?{draftId:editing.id,expectedUpdatedAt:editing.updated_at}:{}),scheduledAt:simulationSchedule,accountId:accountId||null,categoryId:categoryId||null,allowDuplicate}}
+            onSaved={draft=>{replaceDraft(draft);setEditing(draft);setBody(draft.body);setNotice("시뮬레이션 결과가 저장되었습니다. History에서 처리 이력을 확인하세요.");}}/>
         </section>
-        {editing&&<section className="pro-card"><DraftApprovalHistory workspaceId={workspace.workspace.id} draftId={editing.id} key={editing.id+editing.updated_at}
+        {editing&&<section className="pro-card"><PublishTimeline base={base} draft={editing} key={"timeline"+editing.updated_at}/><DraftApprovalHistory workspaceId={workspace.workspace.id} draftId={editing.id} key={editing.id+editing.updated_at}
           actorName={(id)=>workspace.members.find((member)=>member.profile_id===id)?.profiles?.display_name??"워크스페이스 멤버"}/></section>}
         {savedDrafts.length>0&&<section className="pro-card"><div className="pro-card-title"><h2>이어서 작성하기</h2><span>{savedDrafts.length}개</span></div>{savedDrafts.map((draft)=><div className="pro-saved-row" key={draft.id}>
           <Link className="pro-draft-link" href={"/composer?draft="+draft.id}><p>{draft.body||draft.topic}</p><Icon name="arrow" size={14}/></Link>
@@ -233,12 +259,16 @@ export function ProductApp({view,email,workspace,initialDrafts,initialConnection
       {view==="queue"&&<>
         <div className="pro-queue-summary"><span><b>{queue.length}</b>개 글이 큐에 있어요</span><span className={"pro-badge "+(canPublish&&workerFresh?"success":"warning")}>{canPublish?(workerFresh?"자동 게시 운영 중":"실행기 상태 확인 필요"):"계정 연결 후 자동 게시"}</span>
           <button disabled={busy} onClick={()=>action(async()=>{await refresh();setNotice("최신 큐를 불러왔습니다.");})}>새로고침</button></div>
-        <section className="pro-card"><div className="pro-tabs">{[["all","전체"],["unpublished","게시 대기"],["publishing","게시 중"],["published","성공"],["failed","실패"],["test","TEST"]].map(([key,label])=><button key={key} className={queueFilter===key?"selected":""} onClick={()=>setQueueFilter(key)}>{label}</button>)}</div>
+        <section className="pro-card"><div className="pro-tabs">{[["all","전체"],["unpublished","게시 대기"],["publishing","게시 중"],["published","성공"],["failed","실패"],["retry","Retry"],["attention","Needs Attention"],["cancelled","취소"],["test","TEST"]].map(([key,label])=><button key={key} className={queueFilter===key?"selected":""} onClick={()=>setQueueFilter(key)}>{label}</button>)}</div>
           <div className="pro-table-wrap"><table className="pro-table"><thead><tr><th>게시 예정</th><th>계정 / 본문</th><th>상태</th><th>관리</th></tr></thead><tbody>
-            {queueEntries.filter((draft)=>(!categoryFilter||draft.category_id===categoryFilter)&&(queueFilter==="all"||queueFilter==="test"&&draft.publish_stage==="test_completed"||queueFilter!=="test"&&draft.publish_stage!=="test_completed"&&draft.publication_status===queueFilter)).map((draft)=><tr key={draft.id}><td><strong>{time(draft.scheduled_at)}</strong><small>KST{draft.publication_status==="unpublished"&&Date.parse(draft.scheduled_at!)<Date.parse(now)?" · 실행 대기":""}</small></td>
+            {queueEntries.filter((draft)=>(!categoryFilter||draft.category_id===categoryFilter)&&queueMatch(draft)).map((draft)=><tr key={draft.id}><td><strong>{time(draft.scheduled_at)}</strong><small>KST{draft.publication_status==="unpublished"&&Date.parse(draft.scheduled_at!)<Date.parse(now)?" · 실행 대기":""}</small></td>
               <td><small>{accountLabel} · {operations.categories.find(c=>c.id===draft.category_id)?.name??"미분류"}</small><p>{draft.body}</p>{draft.publish_error&&<span className="pro-inline-error">{draft.publish_error}</span>}</td><td><Status draft={draft}/><small>{draft.auto_publish?"자동 게시":"수동 예약"}</small></td>
-              <td><div className="pro-row-actions"><Link aria-disabled={isLocked(draft)} href={"/composer?draft="+draft.id}>수정</Link><button disabled={busy||isLocked(draft)} onClick={()=>mutate(draft,"cancel")}>취소</button>
-                <button className="accent" disabled={busy||isLocked(draft)||!canPublish} onClick={()=>publish(draft)}>즉시 게시</button></div></td></tr>)}
+              <td><span className="publish-job-detail">{draft.publish_simulated?"TEST 시뮬레이션 · ":""}재시도 {draft.publish_retry_count}회{draft.publish_next_retry_at?" · 다음 "+time(draft.publish_next_retry_at):""}{draft.publish_error_code?" · "+draft.publish_error_code:""}</span>
+                {draft.publish_needs_attention&&!draft.publish_retryable&&<p className="pro-help">결과 확인 전 수정·취소·재시도 잠금</p>}
+                <div className="pro-row-actions"><Link aria-disabled={isLocked(draft)} href={"/composer?draft="+draft.id}>수정</Link><button disabled={busy||isLocked(draft)||draft.publish_stage==="cancelled"} onClick={()=>mutate(draft,"cancel")}>취소</button>
+                <button className="accent" disabled={busy||isLocked(draft)||!canPublish||draft.publish_simulated} onClick={()=>publish(draft)}>{draft.publication_status==="failed"?"수동 재시도":"즉시 게시"}</button></div>
+                <PublishSimulation base={base} draft={draft} disabled={busy||isLocked(draft)||!!draft.publish_next_retry_at} onBusy={setBusy} onSaved={replaceDraft}/>
+                <PublishTimeline base={base} draft={draft} key={draft.updated_at}/></td></tr>)}
           </tbody></table></div>
           {!queueEntries.length&&<div className="pro-empty"><Icon name="calendar" size={30}/><h3>예약한 글이 아직 없어요.</h3><p>글을 작성하고 게시할 날짜와 시간을 지정해 보세요.</p><Link href="/composer?mode=schedule">첫 예약 만들기 <Icon name="arrow" size={14}/></Link></div>}
         </section></>}
@@ -250,7 +280,8 @@ export function ProductApp({view,email,workspace,initialDrafts,initialConnection
           <p className="pro-history-body">{draft.body}</p>{draft.threads_post_id&&<p className="pro-post-id">Threads Post ID <code>{draft.threads_post_id}</code></p>}
           {draft.publish_error&&<div className="pro-feedback error">{draft.publish_error}</div>}<p className="pro-help">{draft.publish_mode??"—"} · {draft.publish_stage} · 재시도 {draft.publish_retry_count}회{draft.publish_error_code?" · 오류 "+draft.publish_error_code:""}{draft.publish_next_retry_at?" · 다음 시도 "+time(draft.publish_next_retry_at):""}</p>{draft.threads_container_id&&<p className="pro-post-id">Container ID <code>{draft.threads_container_id}</code></p>}
           {!draft.publish_retryable&&draft.publication_status==="failed"&&<p className="pro-help">결과가 불확실해 자동 재시도를 차단했습니다. Threads에서 실제 게시 여부를 확인해야 합니다.</p>}
-          <div className="pro-row-actions">{draft.publication_status==="failed"&&<button className="accent" disabled={busy||!draft.publish_retryable||!canPublish} onClick={()=>publish(draft)}>재시도</button>}
+          <PublishTimeline base={base} draft={draft} key={draft.updated_at}/>
+          <div className="pro-row-actions">{draft.publication_status==="failed"&&<button className="accent" disabled={busy||!draft.publish_retryable||!canPublish||draft.publish_simulated} onClick={()=>publish(draft)}>재시도</button>}
             {draft.publication_status==="failed"&&draft.publish_retryable&&<Link href={"/composer?draft="+draft.id}>수정 후 재시도</Link>}
             <Link href={"/composer?copy="+draft.id}>새 글로 다시 게시</Link><button onClick={()=>action(async()=>{await navigator.clipboard.writeText(draft.body);setNotice("본문을 복사했습니다.");})}>복사</button>
             <button disabled={busy} onClick={()=>mutate(draft,draft.history_hidden_at?"show":"hide")}>{draft.history_hidden_at?"다시 표시":"숨김"}</button></div>

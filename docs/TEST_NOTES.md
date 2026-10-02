@@ -1,5 +1,11 @@
 # TEST NOTES
 
+## 2026-10-02 — 게시 운영 안정화
+
+- 새 `test-publish-operations.mjs` PASS: 원자적 TEST 저장/실패 rollback, 동시 claim 한 건, stable job key/시간순 이력, 1/5/15분 retry와 한도, 영구/불확실 실패 격리, 안전한 stale 회수/불확실 잠금 유지, 취소, real Post ID 이후 5 Insights checkpoint와 collector attempt fencing, NULL/실제 0 구분. 격리 DB fixture만 사용하며 Meta 호출/실제 성공 가정은 없다.
+- 실제 Supabase에 `publish_operations_stability` migration 적용. 기존 drafts 3건 보존, 신규 job 필드·이력 RLS 확인, connected account/Insight snapshot/collector job 0건. Scheduler의 매분 실제 heartbeat는 Meta 연결 대기를 기록한다.
+- lint/typecheck/production build PASS. MASTER_PLAN 원본/정적 SHA256 일치, 기존 MD 보존. Auth/A·B/기존 P0~P2 반복검사는 수행하지 않는다. 자세한 사용·복구·성과 경계는 `PUBLISH_OPERATIONS.md`에 있다.
+
 ## 2026-10-02 — P3 LIVE 운영과 성과 피드백
 
 기존 Auth/A·B 로그인/50개 RLS/이전 기능 전체 검사를 반복하지 않고 새 기능만 확인했다. 실제 Supabase에 P3 migration 5개를 적용했다. 현재 실제 DB의 Threads 계정/credential/외부 post·account snapshot은 0건이며 실제 Meta 인증·게시·Insights 성공으로 주장하지 않는다.

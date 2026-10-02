@@ -1,5 +1,7 @@
 # PROJECT PLAN — Threads Duo OS
 
+2026-10-02 게시 운영 안정화: 기존 엔진 위에 작업 키/lease/이력, stale 복구, credential 없는 TEST와 제한 retry, Dashboard 상태 및 Insights adapter/lease fencing을 추가했다. 실제 Supabase migration 적용과 신규 계약의 격리 DB 검사, lint/typecheck/build를 통과했다. Meta 보안 제한이 해제될 때 OAuth→TEST→LIVE→실제 게시→Insights로 연결한다. 기존 P0~P2 전체/로그인 반복 검사는 하지 않는다. 상세: `docs/PUBLISH_OPERATIONS.md`.
+
 P3 구현 순서: OAuth/Token Manager → 기존 LIVE Publisher/Queue 연결과 안전장치 → Insights snapshot → Analytics → 성과 기반 AI/Planner 피드백 → CSV. 새 migrations 다섯 개는 실제 Supabase에 적용했다. 새 기능 검사와 격리 브라우저의 실제 OpenAI 후속 글→Queue 저장을 통과했다. 기존 Auth/A·B/동일 RLS 반복 검사는 하지 않았다. Meta 앱 환경변수·테스터 승인 전에는 외부 게시/수집 완료로 기록하지 않는다. 상세: `docs/THREADS_LIVE.md`.
 
 P2 구현: 주간 목표 → AI 계획 → 실제 글 생성/편집 → 시간 배분 → Calendar/Queue 원자적 저장 → 반복 슬롯 관리 → Dashboard/내부 Analytics. 반복 슬롯과 실제 글을 분리하고 검토 전 Queue 등록을 막는다. Meta 토큰 없이 운영 계획과 예약까지 사용 가능하다. 무인 AI 생성과 Threads Insights 수집은 후속 범위다. 기존 Auth/게시 엔진을 재작성하지 않았다. 상세: `docs/CONTENT_OPERATIONS.md`.

@@ -1,5 +1,9 @@
 # MVP SPEC
 
+## 게시 운영 안정화
+
+Composer/Queue 읽기 전용 게시 준비 검사와 credential 없는 TEST(성공/일시/영구/불확실 오류), Queue Retry·Needs Attention·취소·TEST 필터, History 시간순 처리 이력, Dashboard scheduler/연결/Insights 상태를 제공한다. TEST는 실제 Post ID·Published 수치·Insights를 만들지 않는다. LIVE는 기존 검증된 계정/토큰/권한을 요구한다. 불확실한 작업은 잠금을 유지하고 반복 게시하지 않는다. 상세: `docs/PUBLISH_OPERATIONS.md`.
+
 ## 최신 제품 범위 — P3 LIVE와 성과 피드백
 
 Accounts OAuth/Token Manager/명시적 TEST·LIVE, 기존 게시 엔진 단계·잠금·제한 재시도·Needs Attention, 예약 worker 연결, nullable 게시물/계정 Insights snapshot과 자동 수집, 내부 Engagement Score/Top Posts/충분한 표본의 패턴·시간 추천, 후속 AI 3/5/10개→기존 Composer/Queue, Planner 성과 ON/OFF, CSV 64KB/30행 preview/정상 행 저장, Dashboard LIVE 상태를 제공한다. 실제 Meta 설정 전에는 연결 필요·Unavailable·표본 부족을 표시하며 외부 게시 성공이나 가짜 지표를 만들지 않는다. 상세는 `docs/THREADS_LIVE.md`를 따른다.

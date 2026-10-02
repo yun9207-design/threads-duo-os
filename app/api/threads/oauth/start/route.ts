@@ -8,8 +8,9 @@ import { WorkspaceAccessError, workspaceErrorResponse } from "@/lib/workspaces";
 export const runtime = "nodejs";
 export async function POST(request: Request) {
   try {
-    const input = await draftRequestInput(request) as {workspaceId?: unknown};
+    const input = await draftRequestInput(request) as {workspaceId?: unknown;insights?:unknown};
     if (!input || typeof input.workspaceId !== "string" || !isUuid(input.workspaceId)) return draftsResponse({error:"워크스페이스를 확인해 주세요."},400);
+    if(input.insights!==undefined&&typeof input.insights!=="boolean")return draftsResponse({error:"Insights 연결 설정을 확인해 주세요."},400);
     await threadsOwner(input.workspaceId);
     const config = threadsOAuthConfig();
     if (!config) return draftsResponse({error:"Meta 앱 설정이 필요합니다. Accounts의 연결 준비 항목을 확인해 주세요."},503);
@@ -19,7 +20,7 @@ export async function POST(request: Request) {
     const state = randomBytes(32).toString("base64url");
     await accountOperation(input.workspaceId, "state_create", {hash: createHash("sha256").update(state).digest("hex")});
     (await cookies()).set("threads_oauth", input.workspaceId+"."+state, {httpOnly:true,secure:true,sameSite:"lax",path:"/api/threads/oauth",maxAge:600});
-    return draftsResponse({url:threadsAuthorizeUrl(config.appId,config.redirectUri,state)});
+    return draftsResponse({url:threadsAuthorizeUrl(config.appId,config.redirectUri,state,input.insights===true)});
   } catch (error) { return error instanceof ThreadsAccountError ? draftsResponse({error:error.message},error.status)
     : error instanceof WorkspaceAccessError ? workspaceErrorResponse(error) : draftsErrorResponse(error); }
 }

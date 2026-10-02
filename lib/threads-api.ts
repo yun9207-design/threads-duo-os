@@ -30,7 +30,8 @@ async function graph(token: string, path: string, params: Record<string, string>
   const data = await response.json().catch(() => null);
   if (!response.ok) {
     const code = typeof data?.error?.code === "number" ? String(data.error.code) : String(response.status);
-    const transient = response.status >= 500 || [408,429].includes(response.status) || data?.error?.is_transient === true || [4,17,32,613].includes(Number(code));
+    const permanent=["190","10","200","100"].includes(code);
+    const transient = !permanent && (response.status >= 500 || [408,429].includes(response.status) || data?.error?.is_transient === true || [4,17,32,613].includes(Number(code)));
     throw new ThreadsApiError("Threads 요청 실패 (HTTP " + response.status + " / code " + code + "). 계정 연결·권한과 본문 제한을 확인해 주세요.",
       response.status >= 500 || response.status === 408, code, transient);
   }
@@ -111,10 +112,10 @@ export async function publishThreadsText(token: string, userId: string, text: st
 export const THREADS_PUBLISH_PERMISSIONS = ["threads_basic", "threads_content_publish"] as const;
 // Insights remains usable when already granted, but cannot block text publishing.
 export const THREADS_PERMISSIONS = [...THREADS_PUBLISH_PERMISSIONS, "threads_manage_insights"] as const;
-export function threadsAuthorizeUrl(appId: string, redirectUri: string, state: string) {
+export function threadsAuthorizeUrl(appId: string, redirectUri: string, state: string, withInsights=false) {
   const url = new URL("https://www.threads.com/oauth/authorize");
   url.search = new URLSearchParams({client_id: appId, redirect_uri: redirectUri, response_type: "code",
-    scope: THREADS_PUBLISH_PERMISSIONS.join(","), state}).toString();
+    scope: (withInsights?THREADS_PERMISSIONS:THREADS_PUBLISH_PERMISSIONS).join(","), state}).toString();
   return url.toString();
 }
 async function tokenRequest(path: string, params: Record<string, string>, method: "GET"|"POST", token: string, transport: Fetcher) {
@@ -162,7 +163,7 @@ export function threadsMetricValue(payload: unknown, metric: string, account = f
 }
 export async function collectThreadsMetrics(token: string, id: string, account = false, date?: string, transport: Fetcher = fetch) {
   if(!/^[0-9]+$/.test(id))throw new ThreadsApiError("Insights ID를 확인해 주세요.");
-  const names=account?ACCOUNT_METRICS:POST_METRICS,metrics:Record<string,number|null>={},unavailable:Record<string,string>={};
+  const names=account?ACCOUNT_METRICS:POST_METRICS,metrics:Record<string,number|null>={},unavailable:Record<string,string>={},errors:Record<string,string>={};
   const since=date?Math.floor(Date.parse(date+"T00:00:00+09:00")/1000):undefined,until=since===undefined?undefined:since+86400;
   // Isolate unsupported metrics; one unavailable field cannot hide every other
   // result. Two small batches bound both request concurrency and total latency.
@@ -172,8 +173,8 @@ export async function collectThreadsMetrics(token: string, id: string, account =
         (url,options)=>transport(url,{...options,signal:AbortSignal.any([options!.signal!,AbortSignal.timeout(8000)])}));
       metrics[metric]=threadsMetricValue(data,metric,account,metric==="followers_count"?undefined:since,metric==="followers_count"?undefined:until);
       if(metrics[metric]===null)unavailable[metric]="Unavailable";
-    } catch(error){if(error instanceof ThreadsApiError&&!error.transient&&!["190","10","200"].includes(error.code??"")){metrics[metric]=null;unavailable[metric]="Unavailable";}
+    } catch(error){if(error instanceof ThreadsApiError&&!error.transient&&!["190","10","200"].includes(error.code??"")){metrics[metric]=null;unavailable[metric]="Unavailable";errors[metric]=error.code??"UNAVAILABLE";}
       else throw error;}
   }));}
-  return {metrics,unavailable};
+  return {metrics,unavailable,errorCode:Object.values(errors)[0]??null};
 }

@@ -11,6 +11,7 @@ export type ThreadsAccountRow = {
   granted_permissions: string[]; api_error_code: string|null; api_message: string|null; maintenance_after: string;
 };
 export type DraftRow = {
+  publish_job_id:string;publish_lease_until:string|null;publish_simulated:boolean;publish_simulation_scenario:string|null;
   id: string; workspace_id: string; author_profile_id: string; category_id:string|null;
   topic: string; body: string; status: DraftStatus;
   created_at: string; updated_at: string; deleted_at: string | null; scheduled_at: string | null;
@@ -19,7 +20,7 @@ export type DraftRow = {
   publish_error: string | null; publish_attempt_id: string | null;
   publish_started_at: string | null; publish_retryable: boolean;
   auto_publish: boolean; selected_threads_account_id: string | null; history_hidden_at: string | null;
-  publish_stage: "queued"|"processing"|"container_created"|"publishing"|"published"|"failed"|"test_completed";
+  publish_stage: "scheduled"|"queued"|"processing"|"container_created"|"publishing"|"published"|"retry_wait"|"failed"|"needs_attention"|"cancelled"|"test_completed";
   publish_mode: "TEST"|"LIVE"|null; publish_requested_at:string|null; publish_error_code:string|null;
   publish_retry_count:number; publish_next_retry_at:string|null; publish_needs_attention:boolean; tested_at:string|null;
   source_template_id:string|null;
@@ -28,6 +29,8 @@ export type DraftApprovalHistoryRow = {
   id: string; draft_id: string; workspace_id: string; actor_user_id: string;
   from_status: DraftStatus; to_status: DraftStatus; note: string | null; created_at: string;
 };
+export type PublishJobEvent={id:number;workspace_id:string;draft_id:string;job_id:string;attempt_id:string|null;actor_user_id:string|null;
+ from_state:string|null;to_state:string;mode:string|null;simulated:boolean;retry_count:number;error_code:string|null;summary:string|null;created_at:string};
 export type Json = string | number | boolean | null | { [key:string]:Json|undefined } | Json[];
 export type AiGenerationRow = {id:string;workspace_id:string;actor_user_id:string;request_hash:string;topic:string;purpose:string;tone:string;
   mode:"single"|"multiple"|"series";post_count:number;parameters:Json;model:string;status:"generating"|"completed"|"failed";
@@ -49,6 +52,7 @@ type MemberRow = {
 export type Database = {
   public: {
     Tables: {
+      publish_job_events:{Row:PublishJobEvent;Insert:never;Update:never;Relationships:[]};
       threads_post_insight_snapshots:{Row:import("../threads-performance").PostInsight;Insert:never;Update:never;Relationships:[]};
       account_insight_snapshots:{Row:import("../threads-performance").AccountInsight;Insert:never;Update:never;Relationships:[]};
       content_categories:{Row:Category;Insert:{workspace_id:string;created_by:string;name:string;color:string};Update:{name?:string;color?:string;archived_at?:string};Relationships:[]};
@@ -147,6 +151,7 @@ export type Database = {
       threads_account_operation:{Args:{p_workspace_id:string;p_secret:string;p_operation:string;p_data?:Json};Returns:Json};
       threads_insight_operation:{Args:{p_workspace_id:string;p_secret:string;p_operation:string;p_data?:Json};Returns:Json};
       save_categorized_posts:{Args:{p_workspace_id:string;p_posts:Json;p_ai?:boolean};Returns:DraftRow[]};
+      save_publish_simulation:{Args:{p_workspace_id:string;p_secret:string;p_post:Json;p_scenario:string};Returns:Json};
       save_csv_posts:{Args:{p_workspace_id:string;p_posts:Json};Returns:DraftRow[]};
       place_content_plan:{Args:{p_workspace_id:string;p_plan_id:string;p_expected_updated_at:string;p_posts:Json};Returns:DraftRow[]};
       ai_server_credential:{Args:{p_workspace_id:string;p_server_secret:string};Returns:string|null};

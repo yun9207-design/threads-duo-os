@@ -1,5 +1,9 @@
 # DB SCHEMA
 
+## 게시 운영 안정화 추가 구조
+
+`20261002045701_publish_operations_stability.sql`을 실제 Supabase에 적용했다. 별도 job 테이블 대신 기존 drafts의 `publish_job_id`(unique UUID), `publish_lease_until`, `publish_simulated`, `publish_simulation_scenario`, 기존 단계/attempt/retry 필드를 사용한다. append-only `publish_job_events`는 draft/workspace 복합 FK와 멤버 SELECT RLS를 가진다. 서버 capability만 상태를 변경하며 시뮬레이션 저장+claim RPC는 기존 저장 함수를 하나의 트랜잭션으로 묶는다. Snapshot은 `threads_post_id`, `available_metrics`, `collection_status`, `error_code`를 추가하고 collector attempt fencing을 적용한다. 기존 테이블/데이터/권한을 보존한다. 상세: `docs/PUBLISH_OPERATIONS.md`.
+
 ## P3 추가 구조
 
 실제 적용 migration 5개와 상세 권한은 `docs/THREADS_LIVE.md`를 따른다. `threads_accounts`에 연결/만료/갱신/권한/health/TEST·LIVE metadata, `drafts`에 게시 단계/모드/요청/오류 코드/제한 재시도/Needs Attention/TEST 완료 및 CSV template provenance를 추가했다. private credential은 암호화 envelope, OAuth state는 hash/만료/사용 여부만 저장한다. nullable `threads_post_insight_snapshots`(+1/6/24/72/168h)와 `account_insight_snapshots`(날짜/수집 시각), private 수집 job/lease를 분리한다. 공개 snapshot은 workspace 멤버 SELECT 전용이며 서버 capability만 결과를 기록한다. `content_plans.performance_feedback`은 기본 OFF, AI 생성 parameters에 실제 원본 draft/snapshot/분석 근거를 보존한다. 기존 Auth/workspace schema와 drafts CRUD를 유지한다.
