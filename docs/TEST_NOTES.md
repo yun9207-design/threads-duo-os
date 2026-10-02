@@ -11,7 +11,7 @@
 - `scripts/test-csv-import.mjs` PASS: RFC4180/BOM/줄바꿈, 64KB/30행, 날짜/분류/계정/템플릿/중복/정상 행 선택, atomic rollback/저장 유지. 브라우저 preview 정상 1·오류 2 표시 → 정상 행만 저장 → Queue 재조회 유지 확인. [화면 증거](screenshots/p3-csv-queue.png).
 - Accounts 연결 준비/세 변수/TEST·LIVE 안내와 Analytics 수집 범위·Unavailable·패턴 표본 기준을 실제 브라우저에서 확인했다. 표시된 숫자는 격리 DB의 표본이며 Production에 가짜 Insights를 넣지 않았다.
 - 화면 검사 중 AI→Queue의 편집 버전을 undefined 파싱 값이 덮어쓰는 문제를 수정하고 서버 통합 검사로 확인했다. lint의 effect 동기 setState를 제거해 callback 결과를 server prop으로 넘겼다.
-- 첫 Production 배포 `fcaf795`의 자동 smoke에서 새 OAuth/성과 endpoint가 WorkspaceAccessError를 503으로 오인하는 응답 매핑을 수정했다. 기존 Auth/RLS는 변경하지 않았다. `scripts/smoke-threads-live-http.mjs`는 유효한 새 입력의 세션 없는 접근 401/no-store와 state 없는 callback 안전 종료를 실제 HTTP로 확인한다.
+- Production 자동 smoke에서 새 OAuth/성과 endpoint의 WorkspaceAccessError 매핑과 수집 요청의 인증/서버 설정 확인 순서를 수정했다. 서버 설정이 없어도 먼저 로그인 경계를 확인하며 기존 Auth/RLS는 변경하지 않았다. `scripts/smoke-threads-live-http.mjs`는 유효한 새 입력의 세션 없는 접근 401/no-store와 state 없는 callback 안전 종료를 실제 HTTP로 확인한다.
 - 최종 lint/typecheck/production build와 staged diff/브라우저 번들 비밀값 미포함 검사 PASS. 기존 MASTER_PLAN 원본·정적 사본과 모든 기존 MD를 보존한다. `.env.local`/검증 도구·fixture는 Git 제외다. main push 후 Vercel Git 배포 및 신규 경로의 자동 HTTP smoke를 사용하며 수동 로그인은 요청하지 않는다.
 - Supabase advisor의 새 private 테이블 RLS 무정책 INFO는 client 권한 없는 의도적 차단이다. 기존 Auth password 보호 안내는 이전 설정이며 이번 범위에서 변경하지 않았다. 실제 연결/배포 경계는 `THREADS_LIVE.md`를 따른다.
 

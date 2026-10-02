@@ -14,7 +14,9 @@ export async function performanceOverview(workspaceId:string):Promise<Performanc
  return {posts:posts.data!,accounts:accounts.data!,truncated:posts.data!.length===1000||accounts.data!.length===366};
 }
 export async function syncThreadsInsights(workspaceId:string,client?:SupabaseClient<Database>,capability?:string){
- const secret=capability??threadsServerSecret(workspaceId),db=client??await aiClient(workspaceId);
+ // Interactive requests authenticate before checking optional Meta/server
+ // settings. Workers already supply both their DB client and capability.
+ const db=client??await aiClient(workspaceId),secret=capability??threadsServerSecret(workspaceId);
  const op=async(operation:string,data:unknown={})=>{const result=await db.rpc("threads_insight_operation",{p_workspace_id:workspaceId,p_secret:secret,p_operation:operation,p_data:JSON.parse(JSON.stringify(data)) as Json});
  if(result.error)throw new ThreadsAccountError("Insights 수집 결과를 저장하지 못했습니다.");return result.data;};
  const claim=await op("claim") as Claim|null;if(!claim)return {status:"waiting",collected:0};
