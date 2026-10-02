@@ -2,6 +2,8 @@ import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
 
+export type WorkspaceClient={client:NonNullable<Awaited<ReturnType<typeof createClient>>>;userId:string};
+
 export class WorkspaceAccessError extends Error {
   constructor(public readonly status: 401 | 404 | 503) {
     super(
@@ -23,8 +25,8 @@ async function authenticatedClient() {
   return { client, userId: data.user.id };
 }
 
-export async function listWorkspaces() {
-  const { client } = await authenticatedClient();
+export async function listWorkspaces(context?:WorkspaceClient) {
+  const { client } = context??await authenticatedClient();
   // The session's JWT reaches the Data API. RLS supplies the membership boundary.
   const { data, error } = await client
     .from("workspaces")
@@ -34,26 +36,27 @@ export async function listWorkspaces() {
   return data;
 }
 
-export async function readWorkspace(workspaceId: string) {
-  const { client, userId } = await authenticatedClient();
+export async function readWorkspace(workspaceId: string,context?:WorkspaceClient) {
+  const { client, userId } = context??await authenticatedClient();
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(workspaceId)) {
     throw new WorkspaceAccessError(404);
   }
 
-  const { data: workspace, error: workspaceError } = await client
+  const [workspaceResult,membersResult] = await Promise.all([client
     .from("workspaces")
     .select("id, name, created_at")
     .eq("id", workspaceId)
-    .maybeSingle();
+    .maybeSingle(),client
+    .from("workspace_members")
+    .select("profile_id, role, joined_at, profiles(id, display_name)")
+    .eq("workspace_id", workspaceId)
+    .order("joined_at", { ascending: true })]);
+  const {data:workspace,error:workspaceError}=workspaceResult;
   if (workspaceError) throw new WorkspaceAccessError(503);
   // Both inaccessible and nonexistent IDs have the same response.
   if (!workspace) throw new WorkspaceAccessError(404);
 
-  const { data: members, error: membersError } = await client
-    .from("workspace_members")
-    .select("profile_id, role, joined_at, profiles(id, display_name)")
-    .eq("workspace_id", workspaceId)
-    .order("joined_at", { ascending: true });
+  const {data:members,error:membersError}=membersResult;
   if (membersError) throw new WorkspaceAccessError(503);
   const membership = members.find((member) => member.profile_id === userId);
   // If membership is revoked between reads, fail closed without returning data.

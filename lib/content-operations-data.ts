@@ -7,17 +7,19 @@ import {parsePostInput} from "./product-data";
 import type {Json} from "./supabase/database.types";
 import {BUILTIN_TEMPLATES} from "./ai-content";
 import {plannerFeedback} from "./threads-feedback";
+import type {SupabaseClient} from "@supabase/supabase-js";
+import type {Database,ThreadsAccountRow} from "./supabase/database.types";
 function dbError(code?:string):never{throw new AiProviderError(code==="55000"||code==="23505"?"계획 또는 예약 시간이 변경됐습니다. 최신 화면에서 다시 시도해 주세요.":"운영 데이터를 저장하지 못했습니다. 입력과 연결 상태를 확인해 주세요.",code==="55000"||code==="23505"?409:503);}
 const asJson=(value:unknown)=>JSON.parse(JSON.stringify(value)) as Json;
-export async function operationsOverview(workspaceId:string):Promise<OperationsData>{
- const client=await aiClient(workspaceId);
+export async function operationsOverview(workspaceId:string,verifiedClient?:SupabaseClient<Database>,accountRows?:Promise<ThreadsAccountRow[]>):Promise<OperationsData>{
+ const client=verifiedClient??await aiClient(workspaceId);
  const [categories,plans,recurrences,aiPosts,templates,accounts]=await Promise.all([
  client.from("content_categories").select("*").eq("workspace_id",workspaceId).order("created_at"),
  client.from("content_plans").select("*").eq("workspace_id",workspaceId).order("created_at",{ascending:false}).limit(100),
  client.from("recurring_schedules").select("*").eq("workspace_id",workspaceId).order("created_at"),
  client.from("ai_generated_posts").select("draft_id").eq("workspace_id",workspaceId).not("draft_id","is",null),
  client.from("content_templates").select("*").eq("workspace_id",workspaceId).is("deleted_at",null),
- client.from("threads_accounts").select("*").eq("workspace_id",workspaceId)]);
+ accountRows?accountRows.then(data=>({data,error:null})):client.from("threads_accounts").select("*").eq("workspace_id",workspaceId)]);
  if(categories.error||plans.error||recurrences.error||aiPosts.error||templates.error||accounts.error)dbError();
  return {categories:categories.data!,plans:plans.data!,recurrences:recurrences.data!,aiPosts:aiPosts.data!,templates:templates.data!,accounts:accounts.data!};
 }

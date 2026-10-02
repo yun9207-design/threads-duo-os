@@ -1,31 +1,17 @@
-import "server-only";
-import { redirect } from "next/navigation";
-import Link from "next/link";
-import { getAuthenticatedUser } from "@/lib/supabase/server";
-import { currentDraftWorkspace,listDrafts } from "@/lib/drafts";
-import { threadsConnection } from "@/lib/threads-publishing";
-import { queueWorkerStatus } from "@/lib/product-data";
-import { ProductApp, type ProductView } from "@/components/product-app";
-import { operationsOverview } from "@/lib/content-operations-data";
-import {performanceOverview} from "@/lib/threads-insights";
+"use client";
+import {ProductApp,type ProductView} from "@/components/product-app";
+import {useProductData} from "@/components/product-data-provider";
+import {useLayoutEffect} from "react";
+import {finishNavigation} from "@/lib/navigation-metrics";
 
-export async function ProductPage({view,draftId,copyId,initialSchedule,initialWritingTab,initialAiGeneration,initialFill,initialConnectionOutcome}:{view:ProductView;draftId?:string;copyId?:string;initialSchedule?:boolean;initialWritingTab?:"manual"|"ai"|"multiple";initialAiGeneration?:string;initialFill?:boolean;initialConnectionOutcome?:string}){
-  const user=await getAuthenticatedUser();if(!user)redirect("/login");
-  const load=async()=>{
-    const workspace=await currentDraftWorkspace();
-    const [drafts,connection,worker,operations,performance]=await Promise.all([
-      listDrafts(workspace.workspace.id),threadsConnection(workspace.workspace.id),queueWorkerStatus(workspace.workspace.id),
-      operationsOverview(workspace.workspace.id),
-      ["dashboard","analytics","planner"].includes(view)?performanceOverview(workspace.workspace.id):Promise.resolve({posts:[],accounts:[],truncated:false}),
-    ]);
-    return {workspace,drafts,connection,worker,operations,performance};
-  };
-  let data:Awaited<ReturnType<typeof load>>|null=null;
-  try{data=await load();}catch{/* Render the recoverable data error outside the loading boundary. */}
-  if(!data)return <div className="pro-load-error"><h1>워크스페이스를 불러오지 못했습니다.</h1>
-    <p>잠시 후 페이지를 다시 열어 주세요.</p><Link href="/">다시 불러오기</Link><a href="/MASTER_PLAN.html">마스터플랜</a></div>;
-  const {workspace,drafts,connection,worker,operations,performance}=data;
-  return <ProductApp key={view+"/"+(draftId??copyId??"")+"/"+(initialWritingTab??"manual")+"/"+(initialAiGeneration??"")} view={view} email={user.email??"사용자"}
-      workspace={workspace} initialDrafts={drafts} initialConnection={connection} worker={worker} initialOperations={operations} initialPerformance={performance} initialFill={initialFill} initialConnectionOutcome={initialConnectionOutcome}
-      referenceTime={new Date().toISOString()} draftId={draftId} copyId={copyId} initialSchedule={initialSchedule} initialWritingTab={initialWritingTab} initialAiGeneration={initialAiGeneration}/>;
+export type ProductPageProps={view:ProductView;draftId?:string;copyId?:string;initialSchedule?:boolean;initialWritingTab?:"manual"|"ai"|"multiple";initialAiGeneration?:string;initialFill?:boolean;initialConnectionOutcome?:string};
+export function ProductLoading(){return <main className="pro-content" aria-busy="true"><section className="pro-card" role="status"><p className="pro-help">화면을 불러오는 중…</p></section></main>;}
+export function ProductPage(props:ProductPageProps){
+  const store=useProductData(),data=store?.snapshot;
+  useLayoutEffect(()=>{if(data)finishNavigation(props.view);},[props.view,data]);
+  if(store?.error&&!data)return <main className="pro-content"><section className="pro-card"><h1>워크스페이스를 불러오지 못했습니다.</h1><p>{store.error}</p><button className="pro-button ghost" onClick={store.refresh}>다시 불러오기</button></section></main>;
+  if(!data)return <ProductLoading/>;
+  return <ProductApp key={props.view+"/"+(props.draftId??props.copyId??"")+"/"+(props.initialWritingTab??"manual")+"/"+(props.initialAiGeneration??"")} {...props}
+    embedded email={data.email} workspace={data.workspace} initialDrafts={data.drafts} initialConnection={data.connection} worker={data.worker}
+    initialOperations={data.operations} initialPerformance={data.performance} referenceTime={data.referenceTime}/>;
 }

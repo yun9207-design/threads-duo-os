@@ -2,8 +2,9 @@
 
 import { useEffect,useState } from "react";
 import Link from "next/link";
-import { Icon,type IconName } from "@/components/icon";
-import { SessionControls } from "@/components/session-controls";
+import { Icon } from "@/components/icon";
+import {ProductShell} from "./product-shell";
+import {useProductData} from "./product-data-provider";
 import { DraftApprovalHistory } from "@/components/draft-approval-history";
 import { AiComposer } from "@/components/ai-composer";
 import {OperationsPanel} from "@/components/content-operations";
@@ -19,19 +20,6 @@ import { kstInput,kstInputToIso,scheduledDate } from "@/lib/draft-scheduling";
 
 export type ProductView="dashboard"|"composer"|"queue"|"history"|"accounts"|"bulk"|"calendar"|"planner"|"recurring"|"categories"|"analytics";
 type Worker=Database["public"]["Tables"]["queue_worker_status"]["Row"]|null;
-const navigation: {view:ProductView;href:string;label:string;icon:IconName}[]=[
-  {view:"dashboard",href:"/",label:"대시보드",icon:"grid"},
-  {view:"composer",href:"/composer",label:"글 작성",icon:"pen"},
-  {view:"planner",href:"/planner",label:"주간 플래너",icon:"sparkle"},
-  {view:"calendar",href:"/calendar",label:"콘텐츠 캘린더",icon:"calendar"},
-  {view:"queue",href:"/queue",label:"예약 큐",icon:"calendar"},
-  {view:"history",href:"/history",label:"게시 내역",icon:"clock"},
-  {view:"accounts",href:"/accounts",label:"Threads 계정",icon:"settings"},
-  {view:"bulk",href:"/bulk",label:"여러 글 등록",icon:"plus"},
-  {view:"recurring",href:"/recurring",label:"반복 스케줄",icon:"clock"},
-  {view:"categories",href:"/categories",label:"카테고리",icon:"grid"},
-  {view:"analytics",href:"/analytics",label:"운영 분석",icon:"chart"},
-];
 const normalize=(value:string)=>value.trim().replace(/\s+/g," ").toLowerCase();
 const isLocked=(draft:DraftRow)=>draft.publication_status==="published"||draft.publication_status==="publishing"||!draft.publish_retryable;
 function badge(draft:DraftRow){
@@ -47,17 +35,20 @@ function Status({draft}:{draft:DraftRow}){const value=badge(draft);return <span 
 const time=(value:string|null)=>value?scheduledDate(value):"—";
 type BulkItem={id:string;body:string;date:string;time:string};
 
-export function ProductApp({view,email,workspace,initialDrafts,initialConnection,worker,referenceTime,draftId,copyId,initialSchedule=false,initialWritingTab="manual",initialAiGeneration,initialOperations,initialPerformance={posts:[],accounts:[],truncated:false},initialFill,initialConnectionOutcome}:{
+export function ProductApp({view,email,workspace,initialDrafts,initialConnection,worker,referenceTime,draftId,copyId,initialSchedule=false,initialWritingTab="manual",initialAiGeneration,initialOperations,initialPerformance={posts:[],accounts:[],truncated:false},initialFill,initialConnectionOutcome,embedded=false}:{
   view:ProductView;email:string;workspace:DraftWorkspace;initialDrafts:DraftRow[];initialConnection:ThreadsConnection;
   worker:Worker;referenceTime:string;draftId?:string;copyId?:string;initialSchedule?:boolean;initialWritingTab?:"manual"|"ai"|"multiple";initialAiGeneration?:string;
-  initialOperations:OperationsData;initialPerformance?:PerformanceData;initialFill?:boolean;initialConnectionOutcome?:string;
+  embedded?:boolean;initialOperations:OperationsData;initialPerformance?:PerformanceData;initialFill?:boolean;initialConnectionOutcome?:string;
 }){
-  const [drafts,setDrafts]=useState(initialDrafts);
-  const [operations,setOperations]=useState(initialOperations);
-  const [performance,setPerformance]=useState(initialPerformance);
+  const shared=useProductData();
+  const [localDrafts,setLocalDrafts]=useState(initialDrafts),[localOperations,setLocalOperations]=useState(initialOperations),[localPerformance,setLocalPerformance]=useState(initialPerformance);
+  const drafts=shared?.snapshot?.drafts??localDrafts,setDrafts=shared?.setDrafts??setLocalDrafts;
+  const operations=shared?.snapshot?.operations??localOperations,setOperations=shared?.setOperations??setLocalOperations;
+  const performance=shared?.snapshot?.performance??localPerformance,setPerformance=shared?.setPerformance??setLocalPerformance;
   const [categoryFilter,setCategoryFilter]=useState("");
-  const [connection,setConnection]=useState(initialConnection);
-  const [workerState,setWorkerState]=useState(worker);
+  const [localConnection,setLocalConnection]=useState(initialConnection),[localWorker]=useState(worker);
+  const connection=shared?.snapshot?.connection??localConnection,setConnection=shared?.setConnection??setLocalConnection;
+  const workerState=shared?.snapshot?shared.snapshot.worker:localWorker;
   const initial=initialDrafts.find((draft)=>draft.id===(draftId??copyId));
   const [categoryId,setCategoryId]=useState(initial?.category_id??"");
   const [editing,setEditing]=useState<DraftRow|null>(draftId?initial??null:null);
@@ -83,28 +74,6 @@ export function ProductApp({view,email,workspace,initialDrafts,initialConnection
   const [bulkGap,setBulkGap]=useState(60);
   useEffect(()=>{const timer=setInterval(()=>setNow(new Date().toISOString()),30000);return()=>clearInterval(timer);},[]);
   const base="/api/workspaces/"+workspace.workspace.id;
-  useEffect(()=>{
-    if(!["dashboard","analytics"].includes(view))return;
-    const controller=new AbortController(),timer=setInterval(async()=>{
-      if(document.visibilityState!=="visible")return;
-      try{const response=await fetch(base+"/performance",{cache:"no-store",credentials:"same-origin",signal:AbortSignal.any([controller.signal,AbortSignal.timeout(15000)])});if(response.ok&&!controller.signal.aborted)setPerformance(await response.json());}catch{}
-    },60000);return()=>{controller.abort();clearInterval(timer);};
-  },[base,view]);
-  useEffect(()=>{
-    if(!["dashboard","queue","history"].includes(view))return;
-    const controller=new AbortController();
-    const timer=setInterval(async()=>{
-      if(document.visibilityState!=="visible")return;
-      try{
-        const options={cache:"no-store" as const,credentials:"same-origin" as const,
-          signal:AbortSignal.any([controller.signal,AbortSignal.timeout(20000)])};
-        const [rows,status]=await Promise.all([fetch(base+"/drafts",options),fetch(base+"/posts",options)]);
-        if(rows.ok&&status.ok){const [data,health]=await Promise.all([rows.json(),status.json()]);
-          if(!controller.signal.aborted){setDrafts(data.drafts);setWorkerState(health.worker);setConnection(health.connection);}}
-      }catch{/* A transient read failure leaves the last successful snapshot visible. */}
-    },30000);
-    return()=>{clearInterval(timer);controller.abort();};
-  },[base,view]);
   const account=connection.account;
   const canPublish=!!account&&connection.configured&&!connection.error&&account.token_status!=="invalid";
   const queue=drafts.filter((draft)=>draft.scheduled_at&&draft.publication_status!=="published")
@@ -191,21 +160,7 @@ export function ProductApp({view,email,workspace,initialDrafts,initialConnection
   const title={dashboard:"오늘의 운영",composer:"새로운 이야기",queue:"예약 게시 큐",history:"게시 내역",accounts:"Threads 계정",bulk:"여러 글 한 번에",calendar:"콘텐츠 캘린더",planner:"이번 주 콘텐츠 계획",recurring:"꾸준한 게시 리듬",categories:"콘텐츠 카테고리",analytics:"운영 데이터 분석"}[view];
   const subtitle={dashboard:"오늘의 게시와 이번 주 준비를 한눈에 확인하세요.",composer:"생각을 글로 만들고, 원하는 순간에 전하세요.",queue:"예약한 시간에 맞춰 글을 차례로 게시합니다.",history:"게시 결과를 확인하고 다음 콘텐츠를 준비하세요.",accounts:"안전하게 계정을 연결하고 게시 준비를 마치세요.",bulk:"최대 30개 글을 편집하고 한 번에 예약하세요.",calendar:"콘텐츠 흐름을 보고, 다음 이야기를 배치하세요.",planner:"목표 하나에서 한 주의 글과 예약까지.",recurring:"콘텐츠 유형마다 원하는 요일과 시간을 지정하세요.",categories:"작성부터 게시까지 같은 분류로 관리하세요.",analytics:"실제 게시 기록으로 운영을 개선하세요."}[view];
 
-  return <div className="pro-shell">
-    <aside className="pro-sidebar">
-      <Link href="/" className="pro-brand"><span className="pro-brand-mark">t</span><span>threads<span className="pro-brand-pro">PRO</span><small>YOUR CONTENT, ON TIME.</small></span></Link>
-      <div className="pro-workspace"><span>DUO</span><div><strong>{workspace.workspace.name}</strong><small>{workspace.members.length}명 · {workspace.role}</small></div></div>
-      <p className="pro-nav-caption">WORKSPACE</p>
-      <nav aria-label="주 메뉴">{navigation.map((item)=><Link key={item.view} href={item.href} className={"pro-nav "+(view===item.view?"active":"")}>
-        <Icon name={item.icon}/><span>{item.label}</span>{item.view==="queue"&&queue.length>0&&<b>{queue.length}</b>}
-      </Link>)}</nav>
-      <div className="pro-sidebar-bottom"><div className="pro-sidebar-tip"><Icon name="sparkle" size={19}/><strong>꾸준함을 더 쉽게.</strong><p>좋은 글을 준비하세요.<br/>게시 시간은 큐에 맡기세요.</p></div>
-        <a href="/MASTER_PLAN.html" target="_blank" rel="noreferrer" className="pro-plan"><Icon name="book" size={16}/>프로젝트 마스터플랜</a></div>
-    </aside>
-    <div className="pro-main"><header className="pro-topbar"><span>Workspace <i>/</i> {navigation.find((item)=>item.view===view)?.label}</span>
-      <span className={"pro-badge "+(canPublish?"success":"warning")}>{canPublish?"게시 준비 완료":"Meta 계정 연결 필요"}</span></header>
-      <SessionControls email={email}/>
-      <main className="pro-content"><div className="pro-page-heading"><div><div className="pro-eyebrow">THREADS, IN SYNC</div><h1>{title}<span>.</span></h1><p>{subtitle}</p></div>
+  const content=<main className="pro-content" data-page-ready={view}><div className="pro-page-heading"><div><div className="pro-eyebrow">THREADS, IN SYNC</div><h1>{title}<span>.</span></h1><p>{subtitle}</p></div>
         {view!=="composer"&&view!=="bulk"&&<div className="pro-heading-actions"><Link className="pro-button ghost" href="/composer?mode=schedule"><Icon name="calendar" size={16}/>예약 게시</Link>
           <Link className="pro-button primary" href="/composer"><Icon name="plus" size={16}/>새 글 작성</Link></div>}</div>
       {error&&<div className="pro-feedback error" role="alert"><Icon name="warning" size={18}/>{error}</div>}
@@ -326,7 +281,6 @@ export function ProductApp({view,email,workspace,initialDrafts,initialConnection
           <button className="pro-button primary" disabled={busy||bulk.some((item)=>!item.body.trim()||Array.from(item.body).length>500||!item.date)} onClick={()=>saveBulk("schedule")}>{busy?"등록 중…":"전체 예약"}<Icon name="calendar" size={16}/></button></div>
       </>}
       <footer className="pro-footer"><span>Threads Duo OS · Built for your next story.</span><span>한국 시간 KST · {workspace.members.length}명의 workspace</span></footer>
-      </main>
-    </div>
-  </div>;
+      </main>;
+  return embedded?content:<ProductShell view={view} email={email} workspace={workspace} queueCount={queue.length} canPublish={canPublish}>{content}</ProductShell>;
 }

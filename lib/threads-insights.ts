@@ -6,8 +6,8 @@ import {threadsServerSecret,threadsCredential,ThreadsAccountError} from "./threa
 import {collectThreadsMetrics,ThreadsApiError} from "./threads-api";
 import type {PerformanceData} from "./threads-performance";
 type Claim={post:{id:string;draftId:string;accountId:string;afterHours:number;postId:string}|null;account:{id:string;userId:string;date:string}|null};
-export async function performanceOverview(workspaceId:string):Promise<PerformanceData>{
- const db=await aiClient(workspaceId),[posts,accounts]=await Promise.all([
+export async function performanceOverview(workspaceId:string,verifiedClient?:SupabaseClient<Database>):Promise<PerformanceData>{
+ const db=verifiedClient??await aiClient(workspaceId),[posts,accounts]=await Promise.all([
  db.from("threads_post_insight_snapshots").select("*").eq("workspace_id",workspaceId).order("fetched_at",{ascending:false}).limit(1000),
  db.from("account_insight_snapshots").select("*").eq("workspace_id",workspaceId).order("date",{ascending:false}).limit(366)]);
  if(posts.error||accounts.error)throw new ThreadsAccountError("성과 데이터를 불러오지 못했습니다.");

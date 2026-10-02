@@ -1,6 +1,8 @@
 import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
+import type {SupabaseClient} from "@supabase/supabase-js";
+import type {Database} from "./supabase/database.types";
 import { readWorkspace, WorkspaceAccessError } from "@/lib/workspaces";
 import { readDraft, DraftAccessError } from "@/lib/drafts";
 import { DraftInputError, parseDeleteInput } from "@/lib/drafts-validation";
@@ -22,11 +24,12 @@ export function parsePublishInput(value: unknown) {
   return parseDeleteInput(value);
 }
 
-export async function threadsConnection(workspaceId: string): Promise<ThreadsConnection> {
-  await readWorkspace(workspaceId);
-  const client = await createClient();
+export async function threadsConnection(workspaceId: string,verifiedClient?:SupabaseClient<Database>,accountRows?:Promise<ThreadsAccountRow[]>): Promise<ThreadsConnection> {
+  if(!verifiedClient)await readWorkspace(workspaceId);
+  const client = verifiedClient??await createClient();
   if (!client) throw new DraftAccessError(503);
-  const result = await client.from("threads_accounts").select("*").eq("workspace_id", workspaceId).maybeSingle();
+  const rows=accountRows?await accountRows:null;
+  const result = rows?{data:rows.length===1?rows[0]:null,error:rows.length>1?new Error("Multiple accounts"):null}:await client.from("threads_accounts").select("*").eq("workspace_id", workspaceId).maybeSingle();
   const account = result.data;
   let configured = false;
   try { threadsServerSecret(workspaceId); configured = !!account && ["connected","expiring","permission_required"].includes(account.connection_status)

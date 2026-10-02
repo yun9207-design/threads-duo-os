@@ -4,6 +4,8 @@ import { readWorkspace } from "@/lib/workspaces";
 import { DraftAccessError } from "@/lib/drafts";
 import { DraftInputError, isUuid, parseDeleteInput } from "@/lib/drafts-validation";
 import { parseScheduleInput } from "@/lib/draft-scheduling";
+import type {SupabaseClient} from "@supabase/supabase-js";
+import type {Database} from "./supabase/database.types";
 import { PublishingError } from "@/lib/threads-publishing";
 
 export type PostInput = {
@@ -85,8 +87,8 @@ export async function changeProductPost(workspaceId: string, draftId: string, va
   return result.data!;
 }
 
-export async function queueWorkerStatus(workspaceId: string) {
-  const client = await productClient(workspaceId);
+export async function queueWorkerStatus(workspaceId: string,verifiedClient?:SupabaseClient<Database>) {
+  const client = verifiedClient??await productClient(workspaceId);
   const result = await client.from("queue_worker_status").select("*").eq("workspace_id",workspaceId).maybeSingle();
   return result.data;
 }

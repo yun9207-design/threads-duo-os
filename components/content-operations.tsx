@@ -1,7 +1,8 @@
 "use client";
-import {useState} from "react";
+import {useMemo,useState} from "react";
 import Link from "next/link";
-import {allocatePlan,calendarStatus,DEFAULT_MIX,operationsMetrics,recurringSlots,weekBounds,type Category,type ContentPlan,type OperationsData,type PlanItem,type RecurringSchedule} from "@/lib/content-operations";
+import {allocatePlan,calendarStatus,DEFAULT_MIX,operationsMetrics,weekBounds,type Category,type ContentPlan,type OperationsData,type PlanItem,type RecurringSchedule} from "@/lib/content-operations";
+import {calendarIndex} from "@/lib/calendar-index";
 import {kstInput,kstInputToIso} from "@/lib/draft-scheduling";
 import {BUILTIN_TEMPLATES,AI_PURPOSES} from "@/lib/ai-content";
 import type {DraftRow} from "@/lib/supabase/database.types";
@@ -15,10 +16,11 @@ export function OperationsPanel({view,base,data,drafts,now,accountId,accountLabe
  const [business,setBusiness]=useState(existing?.business??""),[goal,setGoal]=useState(existing?.goal??""),[audience,setAudience]=useState(existing?.audience??""),[count,setCount]=useState(existing?.target_count??14);
  const [mix,setMix]=useState<Record<string,number>>(existing?.mix??DEFAULT_MIX),[plan,setPlan]=useState<ContentPlan|null>(null),[dirty,setDirty]=useState(false);
  const [performanceFeedback,setPerformanceFeedback]=useState(existing?.performance_feedback??false);
- const observed=winningPatterns(drafts,performance.posts,data.categories,Date.parse(now)),suggested=observed.byAccount.find(a=>a.accountId===accountId)?.times??[];
+ const observed=useMemo(()=>view==="planner"?winningPatterns(drafts,performance.posts,data.categories,Date.parse(now)):{enough:false,sample:0,byAccount:[]},[view,drafts,performance.posts,data.categories,now]),suggested=observed.byAccount.find(a=>a.accountId===accountId)?.times??[];
  const [busy,setBusy]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState(""),[reviewed,setReviewed]=useState(false);
  const [perDay,setPerDay]=useState(Math.ceil(14/Math.max(1,(Date.parse(week.end)-Date.parse(today))/86400000+1))),[firstTime,setFirstTime]=useState("10:00"),[lastTime,setLastTime]=useState("20:00");
  const [categoryFilter,setCategoryFilter]=useState(""),[statusFilter,setStatusFilter]=useState(""),[calendarMode,setCalendarMode]=useState<"month"|"week">("month"),[focus,setFocus]=useState(today);
+ const calendar=useMemo(()=>view==="calendar"?calendarIndex(focus,calendarMode,drafts,data.recurrences,categoryFilter,statusFilter):null,[view,focus,calendarMode,drafts,data.recurrences,categoryFilter,statusFilter]);
  const [recurrence,setRecurrence]=useState<RecurringSchedule|null>(null),[repeatName,setRepeatName]=useState(""),[repeatDays,setRepeatDays]=useState([1,3,5]),[repeatTime,setRepeatTime]=useState("10:00"),[repeatCategory,setRepeatCategory]=useState(""),[repeatTemplate,setRepeatTemplate]=useState(""),[repeatPurpose,setRepeatPurpose]=useState("정보 전달"),[repeatStart,setRepeatStart]=useState(today),[repeatEnd,setRepeatEnd]=useState("");
  const [categoryEdit,setCategoryEdit]=useState<Category|null>(null),[categoryName,setCategoryName]=useState(""),[categoryColor,setCategoryColor]=useState("#5085cb");
  const activeCategories=data.categories.filter(c=>!c.archived_at),metrics=operationsMetrics(drafts,data,view==="dashboard"?week.start:start,view==="dashboard"?week.end:end);
@@ -75,10 +77,7 @@ export function OperationsPanel({view,base,data,drafts,now,accountId,accountLabe
  {plan.status!=="scheduled"?<section className="pro-card ops-placement"><label className="pro-check-label"><input type="checkbox" checked={reviewed} onChange={e=>setReviewed(e.target.checked)}/>모든 글과 예약 시간을 검토했습니다.</label><button className="pro-button primary" disabled={busy||!reviewed||!plan.items.every(i=>i.aiPostId&&i.body.trim()&&Array.from(i.body).length<=500&&i.scheduledAt)} onClick={place}>Calendar + Queue 전체 배치</button></section>:<section className="pro-card"><Link className="pro-button primary" href="/calendar">Calendar 확인</Link> <Link className="pro-button ghost" href="/queue">Queue 확인</Link></section>}
  </>}</div></div></div>;
  if(view==="calendar"){
- const date=new Date(focus+"T00:00:00Z"),first=calendarMode==="week"?weekBounds(focus+"T12:00:00+09:00").start:new Date(Date.UTC(date.getUTCFullYear(),date.getUTCMonth(),1)).toISOString().slice(0,10);
- const origin=new Date(first+"T00:00:00Z");if(calendarMode==="month")origin.setUTCDate(origin.getUTCDate()-origin.getUTCDay());
- const days=Array.from({length:calendarMode==="week"?7:42},(_,i)=>new Date(origin.getTime()+i*86400000).toISOString().slice(0,10));
- const slots=recurringSlots(data.recurrences,days[0],days.at(-1)!);
+ const date=new Date(focus+"T00:00:00Z"),{days,byDay,slotsByDay}=calendar!;
  async function move(id:string,day:string){const draft=drafts.find(d=>d.id===id);if(!draft||draft.publication_status==="published"||draft.publication_status==="publishing"||!draft.publish_retryable)return;
  await run(async()=>{const scheduledAt=kstInputToIso(day+"T"+(draft.scheduled_at?kstInput(draft.scheduled_at).slice(11):"10:00"));const result=await request({body:draft.body,mode:"schedule",draftId:draft.id,expectedUpdatedAt:draft.updated_at,scheduledAt,accountId:draft.selected_threads_account_id,...(category(draft.category_id)?.archived_at?{}:{categoryId:draft.category_id})},base+"/posts");onDrafts([result.draft]);setNotice("예약 날짜를 변경했습니다.");});}
  return <>{feedback}<section className="pro-card ops-calendar-toolbar"><div className="pro-tabs">{(["month","week"] as const).map(mode=><button key={mode} className={mode===calendarMode?"selected":""} onClick={()=>setCalendarMode(mode)}>{mode==="month"?"월간":"주간"}</button>)}</div>
@@ -88,9 +87,9 @@ export function OperationsPanel({view,base,data,drafts,now,accountId,accountLabe
  <Link className="pro-button ghost" href="/planner?fill=1">빈 슬롯 채우기</Link></section>
  <p className="pro-help">글을 클릭하면 상세 편집으로 이동합니다. 게시 전 카드는 미래 날짜로 드래그해 예약을 바꿀 수 있습니다. 점선 카드는 반복 슬롯으로, 콘텐츠 배치가 필요합니다.</p>
  <div className={"ops-calendar "+calendarMode}><div className="ops-calendar-weekdays">{(calendarMode==="week"?["월","화","수","목","금","토","일"]:weekdays).map(d=><b key={d}>{d}</b>)}</div><div className="ops-calendar-grid">{days.map(day=><div key={day} className={"ops-calendar-day "+(day===today?"today":"")} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();void move(e.dataTransfer.getData("text/plain"),day);}}><time>{day.slice(5)}</time>
- {drafts.filter(d=>kstInput(d.scheduled_at??d.published_at??d.created_at).slice(0,10)===day&&(!categoryFilter||d.category_id===categoryFilter)&&(!statusFilter||calendarStatus(d)===statusFilter)).map(d=><Link href={"/composer?draft="+d.id} key={d.id} className={"ops-calendar-card "+calendarStatus(d).toLowerCase()} draggable={!busy&&d.publication_status==="unpublished"&&d.publish_retryable} onDragStart={e=>e.dataTransfer.setData("text/plain",d.id)}>
+ {(byDay.get(day)??[]).map(d=><Link href={"/composer?draft="+d.id} key={d.id} className={"ops-calendar-card "+calendarStatus(d).toLowerCase()} draggable={!busy&&d.publication_status==="unpublished"&&d.publish_retryable} onDragStart={e=>e.dataTransfer.setData("text/plain",d.id)}>
  <div><time>{kstInput(d.scheduled_at??d.published_at??d.created_at).slice(11)}</time><small>{calendarStatus(d)}</small></div><strong>{d.body.slice(0,70)||d.topic}</strong><CategoryTag category={category(d.category_id)}/><span>{accountLabel}</span></Link>)}
- {!statusFilter&&slots.filter(s=>kstInput(s.at).slice(0,10)===day&&(!categoryFilter||s.schedule.category_id===categoryFilter)&&!drafts.some(d=>d.scheduled_at&&Date.parse(d.scheduled_at)===Date.parse(s.at))).map(s=><Link href="/planner?fill=1" className="ops-calendar-slot" key={s.schedule.id+s.at}>{s.schedule.time_of_day.slice(0,5)} · {s.schedule.name}<small>반복 슬롯 · 콘텐츠 필요</small></Link>)}</div>)}</div></div></>;
+ {(slotsByDay.get(day)??[]).map(s=><Link href="/planner?fill=1" className="ops-calendar-slot" key={s.schedule.id+s.at}>{s.schedule.time_of_day.slice(0,5)} · {s.schedule.name}<small>반복 슬롯 · 콘텐츠 필요</small></Link>)}</div>)}</div></div></>;
  }
  if(view==="recurring")return <>{feedback}<div className="ops-planner-layout"><section className="pro-card ops-form"><h2>{recurrence?"반복 슬롯 편집":"반복 슬롯 만들기"}</h2><label>슬롯 이름<input value={repeatName} maxLength={100} placeholder="월요일 AI 뉴스 / 팁" onChange={e=>setRepeatName(e.target.value)}/></label>
  <label>반복 유형<select onChange={e=>setRepeatDays(e.target.value==="daily"?[0,1,2,3,4,5,6]:e.target.value==="weekdays"?[1,2,3,4,5]:e.target.value==="weekend"?[0,6]:repeatDays)} defaultValue="custom"><option value="custom">매주 / 사용자 지정 요일</option><option value="daily">매일</option><option value="weekdays">평일</option><option value="weekend">주말</option></select></label>

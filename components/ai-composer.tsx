@@ -2,6 +2,7 @@
 import { useEffect,useState } from "react";
 import Link from "next/link";
 import { Icon } from "./icon";
+import {useProductData} from "./product-data-provider";
 import { AI_ACTIONS,AI_PURPOSES,AI_TONES,BUILTIN_TEMPLATES,distributeAiSchedule,type AiAction,type AiMode } from "@/lib/ai-content";
 import { kstInput,kstInputToIso,scheduledDate } from "@/lib/draft-scheduling";
 import type { AiGenerationRow,AiPostRow,ContentTemplateRow,DraftRow } from "@/lib/supabase/database.types";
@@ -13,6 +14,7 @@ const asResult=(post:AiPostRow,drafts:DraftRow[]):Result=>{const draft=drafts.fi
   const at=draft?.scheduled_at?kstInput(draft.scheduled_at):"";return {...post,body:draft?.body??post.body,selected:!post.draft_id,date:at.slice(0,10),time:at.slice(11)||"10:00"};};
 
 export function AiComposer({base,initialMode="single",initialGeneration,initialBody,accountId,accountLabel,canPublish,drafts,referenceTime,onUse,onSaved,onBusy,categoryId}:Props){
+  const readResource=useProductData()?.readResource;
   const [topic,setTopic]=useState(initialBody.split("\n")[0].slice(0,180));
   const [keyPoints,setKeyPoints]=useState("");const [audience,setAudience]=useState("");
   const [purpose,setPurpose]=useState<string>(AI_PURPOSES[0]),[tone,setTone]=useState<string>(AI_TONES[0]);
@@ -38,12 +40,14 @@ export function AiComposer({base,initialMode="single",initialGeneration,initialB
   }
   useEffect(()=>{
     const controller=new AbortController();
-    fetch(base+"/ai",{cache:"no-store",signal:AbortSignal.any([controller.signal,AbortSignal.timeout(20000)])})
-      .then(async(response)=>{const data=await response.json();if(!response.ok)throw new Error(data.error??"AI 기록을 불러오지 못했습니다.");
+    const load=async()=>{const response=await fetch(base+"/ai",{cache:"no-store",signal:AbortSignal.timeout(20000)});
+      const data=await response.json();if(!response.ok)throw new Error(data.error??"AI 기록을 불러오지 못했습니다.");return data;};
+    (readResource?readResource(base+"/ai",load):load())
+      .then(data=>{
         if(!controller.signal.aborted){setConfigured(data.configured);setJobs(data.jobs);setTemplates(data.templates);}})
       .catch((failure)=>{if(!controller.signal.aborted)setError(failure instanceof Error?failure.message:"AI 기록을 불러오지 못했습니다.");});
     return()=>controller.abort();
-  },[base]);
+  },[base,readResource]);
   useEffect(()=>{
     if(!initialGeneration)return;
     const controller=new AbortController();
@@ -57,7 +61,7 @@ export function AiComposer({base,initialMode="single",initialGeneration,initialB
       .catch((failure)=>{if(!controller.signal.aborted)setError(failure instanceof Error?failure.message:"생성 기록을 불러오지 못했습니다.");});
     return()=>controller.abort();
   },[base,initialGeneration,drafts]);
-  async function reloadHistory(){const data=await request(base+"/ai");setConfigured(data.configured);setJobs(data.jobs);setTemplates(data.templates);}
+  async function reloadHistory(){const load=()=>request(base+"/ai");const data=await (readResource?readResource(base+"/ai",load,true):load());setConfigured(data.configured);setJobs(data.jobs);setTemplates(data.templates);}
   async function action(callback:()=>Promise<void>){if(busy)return;setBusy(true);onBusy(true);setError("");setNotice("");
     try{await callback();}catch(failure){setError(failure instanceof Error?failure.message:"처리하지 못했습니다.");}
     finally{setBusy(false);onBusy(false);}}

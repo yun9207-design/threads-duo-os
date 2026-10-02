@@ -48,7 +48,7 @@ export async function updateSession(request: NextRequest) {
     }
   }
 
-  if (["/","/composer","/queue","/history","/accounts","/bulk"].includes(request.nextUrl.pathname) && !authenticated) {
+  if (["/","/composer","/queue","/history","/accounts","/bulk","/planner","/calendar","/recurring","/categories","/analytics"].includes(request.nextUrl.pathname) && !authenticated) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
     loginUrl.search = "";

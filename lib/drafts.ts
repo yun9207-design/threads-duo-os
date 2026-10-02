@@ -2,7 +2,7 @@ import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
 import { isUuid, DraftInputError, type DraftContent } from "@/lib/drafts-validation";
-import { listWorkspaces, readWorkspace } from "@/lib/workspaces";
+import { listWorkspaces, readWorkspace,type WorkspaceClient } from "@/lib/workspaces";
 
 export type DraftWorkspace = Awaited<ReturnType<typeof readWorkspace>>;
 
@@ -38,8 +38,8 @@ export async function currentDraftWorkspace(): Promise<DraftWorkspace> {
   return readWorkspace(workspace.id);
 }
 
-export async function listDrafts(workspaceId: string) {
-  const { client } = await workspaceClient(workspaceId);
+export async function listDrafts(workspaceId: string,context?:WorkspaceClient) {
+  const { client } = context??await workspaceClient(workspaceId);
   // Page through Data API limits so the list and counts reflect all saved drafts.
   const drafts = [];
   for (let start = 0; ; start += 100) {
