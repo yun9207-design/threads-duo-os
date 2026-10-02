@@ -4,6 +4,7 @@ import { threadsAuthorizeUrl } from "@/lib/threads-api";
 import { accountOperation, threadsOAuthConfig, threadsOwner, ThreadsAccountError } from "@/lib/threads-accounts";
 import { draftRequestInput, draftsErrorResponse, draftsResponse } from "@/lib/drafts-http";
 import { isUuid } from "@/lib/drafts-validation";
+import { WorkspaceAccessError, workspaceErrorResponse } from "@/lib/workspaces";
 export const runtime = "nodejs";
 export async function POST(request: Request) {
   try {
@@ -19,5 +20,6 @@ export async function POST(request: Request) {
     await accountOperation(input.workspaceId, "state_create", {hash: createHash("sha256").update(state).digest("hex")});
     (await cookies()).set("threads_oauth", input.workspaceId+"."+state, {httpOnly:true,secure:true,sameSite:"lax",path:"/api/threads/oauth",maxAge:600});
     return draftsResponse({url:threadsAuthorizeUrl(config.appId,config.redirectUri,state)});
-  } catch (error) { return error instanceof ThreadsAccountError ? draftsResponse({error:error.message},error.status) : draftsErrorResponse(error); }
+  } catch (error) { return error instanceof ThreadsAccountError ? draftsResponse({error:error.message},error.status)
+    : error instanceof WorkspaceAccessError ? workspaceErrorResponse(error) : draftsErrorResponse(error); }
 }
